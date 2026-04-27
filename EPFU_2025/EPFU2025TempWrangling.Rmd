@@ -1,0 +1,1001 @@
+---
+title: "MOCO 2025 Temperature Loggers Individual"
+author: "Ashlyn Sak"
+date: "`r Sys.Date()`"
+output: github_document
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!require("plotly")) install.packages("plotly"); library(plotly)
+if (!require("cowplot")) install.packages("cowplot"); library(cowplot)
+if (!require("readxl")) install.packages("readxl"); library(readxl)
+if (!require("mice")) install.packages("mice"); library(mice)
+if (!require("lubridate")) install.packages("lubridate"); library(lubridate)
+if (!require("openair")) install.packages("openair"); library(openair)
+if (!require("latticeExtra")) install.packages("latticeExtra"); library(latticeExtra)
+if (!require("behavr")) install.packages("behavr"); library(behavr)
+if (!require("ggetho")) install.packages("ggetho"); library(ggetho)
+if (!require("damr")) install.packages("damr"); library(damr)
+if (!require("sleepr")) install.packages("sleepr"); library(sleepr)
+if (!require("timetk")) install.packages("timetk"); library(timetk)
+if (!require("lme4")) install.packages("lme4"); library(lme4)
+if (!require("merTools")) install.packages("merTools"); library(merTools)
+if (!require("conflicted")) install.packages("conflicted"); library(conflicted)
+if (!require("devtools")) install.packages("devtools"); library(devtools)
+if (!require("tidyverse")) install.packages("tidyverse"); library(tidyverse)
+conflict_prefer_all("dplyr", quiet = TRUE)
+conflicts_prefer(plotly::layout)
+conflicts_prefer(lubridate::hours)
+conflicts_prefer(lubridate::days)
+```
+
+Check to make sure that all of those packages are needed, once I am done.
+
+The goal here is to look at each logger individually to verify that the data is clean.
+
+Then I will plot the pre- and post- boost data for each individual.
+
+## Metadata
+
+```{r}
+Metadata <- read_excel("EPFU 2025 BUTT Assignments.xlsx", sheet = "Loggers",  # read in metadata for ibuttons
+    range = "A1:M58", na = "NA")
+glimpse(Metadata)# check formatting
+
+Metadata$Bat_ID = as.character(Metadata$`Bat Pittag`)# change Bat Pittag to a character
+
+glimpse(Metadata)# check formatting again
+```
+
+
+```{r}
+DATA_DIR <- "./Individual Bat" # load in each logger file
+
+file_list <- as_tibble(list.files(DATA_DIR)) |>
+  mutate(Bat_ID = gsub(".csv", "", value)) |>  #removes .csv
+  rename(Filename = value) 
+
+Metadata <- left_join(Metadata, file_list, by = join_by(`Bat Pittag` == Bat_ID)) # adds file name into metadata
+
+batfilelist <- list.files(path = "./Individual Bat", 
+                          pattern = "*.csv", full.names = T) # shows full file path name
+batfilenames <- list.files(path = "./Individual Bat", 
+                           pattern = "*.csv", full.names = F) # shows only file name
+batfiles <- lapply(batfilelist, fread, 
+                   col.names = c("DateTime","Unit", "Temperature"), sep = "," , 
+                   skip = 20) # applies columns to each file, skips the first 20 rows
+
+batnames <- gsub(".csv", "", batfilenames) # removes .csv from file name and leaves only Band 
+
+names(batfiles) <- batnames # names each file by logger name
+```
+
+
+```{r}
+allbatresults <- bind_rows(batfiles, .id = "Bat_ID") # creates a long dataset with each time point for every logger, 4 variables 
+
+allbatresults <- allbatresults %>%
+  mutate(DateTime = mdy_hms(DateTime)) # changes date to appropriate format
+str(allbatresults) # similar to glimpse
+summary(as.factor(allbatresults$Bat_ID)) # display all bat names and their counts use to verify they ran correctly
+md.pattern(allbatresults) # checking for NA's
+Metadata %>%
+  filter(!Bat_ID%in% file_list$Bat_ID) %>% # only selects loggers with a matching file name
+  drop_na(`Filename`) # removes all na's
+Metadata %>%
+  filter(is.na(`Filename`)) # shows which bats do not have a logger
+```
+This looks good, I have 44 files and all the metadata with NAs for file name are either ibuttons that are are missing, unused, or lost data. 
+
+Loggers have 2-8000 datapoints. All the ones used for boost have around 4,000 datapoints which makes sense.
+
+## Missing Data
+
+```{r}
+clean_met <- Metadata %>%
+  drop_na(Filename) # removes any ibuttons with no file
+
+head(clean_met) # look at the top of the dataset
+md.pattern(clean_met, rotate.names = TRUE)
+write_tsv(clean_met, file = "EPFU2025TempLoggerMetadata.tsv")
+```
+
+
+## Making a plot function
+
+```{r}
+plot_fun <- function(arg1) {
+  allbatresults %>%
+    dplyr::filter(Bat_ID == arg1) %>%
+    ggplot(aes(x=DateTime, y=Temperature)) +
+    geom_line() +
+    ylab("Temperature (C)") + xlab("Date") + ylim(4,40) +
+    theme_cowplot() 
+}
+```
+
+```{r}
+plotly_fun <- function(arg1) {
+  plot_ly(data = allbatresults[Bat_ID == arg1],
+          x = ~DateTime, y = ~Temperature,
+          type = 'scatter', mode = 'lines') %>%
+    layout(xaxis = list(title = arg1))
+}
+```
+
+## Looking at the data
+
+```{r Bat 03}
+ggplotly(plot_fun("APS36067"))
+```
+
+```{r Plotly Bat 16}
+plotly_fun("APS36067")
+```
+
+Here we go!
+
+This works fine, but is not interactive
+
+```{r}
+lapply(batnames, plotly_fun)
+```
+
+
+The data loads in well. There are a lot of values that are incorrect (logger never exposed to these temps). Will drop them later.
+Will get in to the details about which ones need to be trimmed in a bit. 
+
+## Calibration
+Before I go any further, I need to calibrate the data. I am using a 2 point calibration from the low and high calibration temps. The formula I am using is CorrectedValue = (((RawValue – RawLow) * ReferenceRange) / RawRange) + ReferenceLow. Before I do that, I need to remove the incorrect values that are over 45 and under 0. Since I know these are incorrect readings and I would want them removed from ALL loggers, I am just going to apply it to the whole dataset.
+
+Unfortunately, my calibration data for the second batch of loggers is really weird and does not make sense. Loggers were reading at 45C while in the hot calibration and 2C while in the cold calibration. The low temperature makes sense because the water bath was in the fridge but the reference thermometer was reading at 11C. The hot temperature does not make sense as the bath should not have been that hot and the reference thermometer read at 35C. I am going to overall this data and see what is going on here. Maybe they are reading within similar ranges and I can keep it without calibrating. The most important thing is that they have similar sensitivity so they are acturately recording fluctuations in the body temperature. 
+```{r}
+
+checking_boost_cal <- allbatresults |> 
+  left_join(Metadata, join_by(Bat_ID)) |> 
+  filter(`Date Attached` >= '2025-09-29')
+
+p <- checking_boost_cal%>%
+  dplyr::filter(Bat_ID %in% batnames) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(0, 50) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+
+# Convert to interactive
+ggplotly(p)
+```
+
+```{r}
+clean_results <- allbatresults |> 
+  filter(Temperature > 0 & # removes temperature data under 0 degrees
+        Temperature < 50) # removes temperature over 45 degrees
+
+summary(as.factor(allbatresults$Bat_ID)) # display all bat names and their counts use to verify they ran correctly
+summary(as.factor(clean_results$Bat_ID)) # comparing counts between the two
+```
+This looks good. Now I am going to add columns to the dataframe with the maximum and minimum values during calibration. There were two different calibrations, so first I have to select loggers only used in the second calibration. 
+
+```{r}
+Clean_results_met <- clean_results %>% 
+  left_join(clean_met, by = "Bat_ID") # join metadata with results so I can extract loggers in second calibration
+
+#Cal_2_results <- Clean_results_met |>  # extracting second calibration results
+#  filter(Calibration == 2) |> 
+#  select(Bat_ID, DateTime, Unit, Temperature)
+#
+#Cal_2_results <- Cal_2_results |> 
+#  group_by(Bat_ID) |> 
+#  mutate(lowT = mean(Temperature[DateTime >= ymd_hms("2025-06-02 10:30:00") & 
+#                  DateTime <= ymd_hms("2025-06-02 14:20:00")],  na.rm = TRUE)) |> 
+#  ungroup() #taking the average temperature during the low calibration for each logger
+#
+#Cal_2_results <- Cal_2_results |> 
+#  group_by(Bat_ID) |> 
+#  mutate(highT = mean(Temperature[DateTime >= ymd_hms("2025-06-03 01:10:00") & 
+#                  DateTime <= ymd_hms("2025-06-3 11:10:00")],  na.rm = TRUE)) |> 
+#  ungroup() #taking the average temperature during the high calibration for each logger
+#
+#Cal_2_results <- Cal_2_results |> 
+#  group_by(Bat_ID) |>                # Group by individual bat
+#  mutate(RangeT = highT-lowT) |> # Calculate range from average high temp and average low temp
+#  ungroup()  
+```
+
+Okay, now because Ken would want me to, I am going to load in the calibration data and get the range and average low. 
+
+```{r}
+#Reference_cal_2 <- read_excel("MOCO_Calibration_Group1_2.xlsx", 
+#    range = "A1:D6362", na = "NA") #loading in the calibration 2 reference data
+#
+#summary(Reference_cal_2) # looking at it to make sure it loaded in correctly
+#
+#Reference_cal_2 <- Reference_cal_2 |> 
+#  mutate(lowT = mean(T1[No.s >= 403 & 
+#                  No.s <= 1323],  na.rm = TRUE)) #taking the average temperature during the low calibration for reference data. I needed to use #the time point because the EA15 does not record date so it loaded in as 1899-12-31 for all times. The time points lines up with the same time #used in averaging low and high logger temperatures.
+#
+#Reference_cal_2 <- Reference_cal_2 |> 
+#  mutate(highT = mean(T1[No.s >= 3923 & 
+#                  No.s <= 6323],  na.rm = TRUE)) #taking the average temperature during the low calibration for reference data. 
+```
+
+The average low is 4.803, the average high is 41.16, and the range is 36.357. 
+Okay, now I am going to create a column in my cal_2_results that has the formula for the corrected values. 
+
+```{r}
+#Cal_2_results <- Cal_2_results |> 
+#  mutate(corrected = ((( Temperature - lowT ) * 36.357)/ RangeT) + 4.803) # applying formula listed above to the calibration to get a corrected #temperature value
+#
+#summary(Cal_2_results)
+```
+I think this data looks good. I took a look at the dataset and saw that the range is different, the low and high looks like they were calculated correctly. 
+
+Now I am going to do the same thing but for the other calibration day
+
+```{r}
+Cal_1_results <- Clean_results_met |> # extracting primary calibration results
+  filter(Calibration == 1) |> 
+  select(Bat_ID, DateTime, Unit, Temperature)
+```
+
+```{r}
+checking_primary_cal <- allbatresults |> 
+  left_join(Metadata, join_by(Bat_ID)) |> 
+  filter(Calibration == '1')
+
+p <- checking_primary_cal%>%
+  dplyr::filter(Bat_ID %in% batnames) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(0, 50) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+
+# Convert to interactive
+ggplotly(p)
+``` 
+
+```{r}
+
+#Cal_1_results <- Cal_1_results |> 
+#  group_by(Bat_ID) |> 
+#  mutate(lowT = mean(Temperature[DateTime >= ymd_hms("2025-05-19 00:40:00") & 
+#                  DateTime <= ymd_hms("2025-05-19 07:50:00")],  na.rm = TRUE)) |> 
+#  ungroup() #taking the average temperature during the low calibration for each logger
+#
+#Cal_1_results <- Cal_1_results |> 
+#  group_by(Bat_ID) |> 
+#  mutate(highT = mean(Temperature[DateTime >= ymd_hms("2025-05-19 14:40:00") & 
+#                  DateTime <= ymd_hms("2025-05-19 16:40:00")],  na.rm = TRUE)) |> 
+#  ungroup() #taking the average temperature during the high calibration for each logger
+#
+#Cal_1_results <- Cal_1_results |> 
+#  group_by(Bat_ID) |>                # Group by individual bat
+#  mutate(RangeT = highT-lowT) |> # Calculate range and add column
+#  ungroup()  
+```
+
+
+
+```{r}
+#Reference_cal_1 <- read_excel("18_May_2025_Calibration.xlsx", 
+#    range = "A1:D5408", na = "NA") # loading in the calibration 2 reference data
+#
+#summary(Reference_cal_1)
+#
+#Reference_cal_1 <- Reference_cal_1 |> 
+#  mutate(lowT = mean(T1[No.s >= 1498 & 
+#                  No.s <= 3220],  na.rm = TRUE)) #taking the average temperature during the #low calibration for each logger
+#
+#Reference_cal_1 <- Reference_cal_1 |> 
+#  mutate(highT = mean(T1[No.s >= 4858 & 
+#                  No.s <= 5338],  na.rm = TRUE)) #taking the average temperature during the #high calibration for each logger
+#
+#summary(Reference_cal_1)
+```
+
+The average low is 3.672, the average high is 42.26, and the range is 38.588. 
+Okay, now I am going to create a column in my cal_1_results that has the formula for the corrected values. 
+
+```{r}
+#Cal_1_results <- Cal_1_results |> 
+#  mutate(corrected = ((( Temperature - lowT ) * 38.588)/ RangeT) + 3.672)
+#
+#summary(Cal_1_results)
+```
+
+Okay, now that I have my data calibrated, I am going to merge the two datasets.
+
+```{r}
+#cal_data <- bind_rows(Cal_1_results, Cal_2_results) |> 
+#  select(Bat_ID, DateTime, corrected) |> 
+#  rename("Temperature" = "corrected")
+#
+```
+
+
+## Left and Right Trimming the data
+
+I will split the data, filter it, and then recombine them.
+
+```{r}
+# for analysis down below, I cannot use DateTime data so I need to convert my time into a numeric 
+clean_met <- clean_met %>%
+  mutate(Attachment_Date = as.numeric(`Date Attached`),
+         Removal_Date = as.numeric(`Date Removed`)) 
+# update this code to to cal_data once I can get this calibrated. I want to get the rest of my code working for now though. 
+clean_results <- clean_results %>%
+  mutate(NumberDate = as.numeric(DateTime))
+
+temps_with_meta <- clean_results %>%
+  left_join(clean_met, by = "Bat_ID") #joining my calibrated data with my metadata
+
+# Filter to keep only records after attachment date
+left_trimmed <- temps_with_meta %>%
+  filter(NumberDate >= `Date Attached`)
+
+# Filter to keep only records before removal date
+right_trimmed <- left_trimmed |> 
+  filter(NumberDate <= `Date Removed`)
+
+# Making a new data table with trimmed data 
+allbatresults2 <- right_trimmed |> 
+  select(Bat_ID, DateTime, NumberDate, Temperature) |> 
+  as.data.table()
+
+#checking the data
+summary(as.factor(allbatresults2$Bat_ID))
+
+glimpse(allbatresults2)
+
+```
+
+```{r}
+plotly_fun2 <- function(arg1) {
+  plot_ly(data = allbatresults2[Bat_ID == arg1],
+          x = ~DateTime, y = ~Temperature,
+          type = 'scatter', mode = 'lines') %>%
+    layout(xaxis = list(title = arg1))
+  }
+
+```
+
+
+```{r}
+lapply(batnames, plotly_fun2)
+```
+## Left trim again
+
+I left trimmed earlier to remove all data from before the day of attachment. I really want to include as much as possible so I am trimming again by the attachment time. This is going to take forever... :/
+
+```{r}
+
+# first trim
+Trimming1 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("22", "16", "21", "3", "9"))
+summary(as.factor(Trimming1$Bat_ID))
+
+Trimming1 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim1 <- Trimming1 |>
+  filter(NumberDate >= "1748967000")
+
+Trim1 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+summary(as.factor(Trim1$Bat_ID))
+
+#second trim
+
+Trimming2 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("39", "41", "44"))
+summary(as.factor(Trimming2$Bat_ID))
+
+Trimming2 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim2 <- Trimming2 |>
+  filter(NumberDate >= "1749151200")
+
+Trim2 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+#third trim
+
+Trimming3 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("46"))
+summary(as.factor(Trimming3$Bat_ID))
+
+Trimming3 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim3 <- Trimming3 |>
+  filter(NumberDate >= "1749154800")
+
+Trim3 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+#fourth trim
+
+Trimming4 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("47", "48"))
+summary(as.factor(Trimming4$Bat_ID))
+
+Trimming4 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim4 <- Trimming4 |>
+  filter(NumberDate >= "1749229200")
+
+Trim4 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+#fifth trim
+
+Trimming5 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("49"))
+summary(as.factor(Trimming5$Bat_ID))
+
+Trimming5 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim5 <- Trimming5 |>
+  filter(NumberDate >= "1748978400")
+
+Trim5 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# sixth trim
+Trimming6 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("50", "60", "62"))
+summary(as.factor(Trimming6$Bat_ID))
+
+Trimming6 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim6 <- Trimming6 |>
+  filter(NumberDate >= "1749220800")
+
+Trim6 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# seventh trim 
+
+Trimming7 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("54", "55"))
+summary(as.factor(Trimming7$Bat_ID))
+
+Trimming7 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim7 <- Trimming7 |>
+  filter(NumberDate >= "1749219000")
+
+Trim7 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# eighth trim
+Trimming8 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("64.1"))
+summary(as.factor(Trimming8$Bat_ID))
+
+Trimming8 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim8 <- Trimming8 |>
+  filter(NumberDate >= "1747736400")
+
+Trim8 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+#Ninth trim
+
+Trimming9 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("64.2"))
+summary(as.factor(Trimming9$Bat_ID))
+
+Trimming9 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim9 <- Trimming9 |>
+  filter(NumberDate >= "1749923400")
+
+Trim9 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# Tenth trim
+
+Trimming10 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("68.1", "74.1"))
+summary(as.factor(Trimming10$Bat_ID))
+
+Trimming10 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim10 <- Trimming10 |>
+  filter(NumberDate >= "1747741800")
+
+Trim10 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# Trim 11
+Trimming11 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("68.2", "74.2", "78.2"))
+summary(as.factor(Trimming11$Bat_ID))
+
+Trimming11 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim11 <- Trimming11 |>
+  filter(NumberDate >= "1749919200")
+
+Trim11 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+#Trim 12 
+
+Trimming12 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("73.4"))
+summary(as.factor(Trimming12$Bat_ID))
+
+Trimming12 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim12 <- Trimming12 |>
+  filter(NumberDate >= "1750091400")
+
+Trim12 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# Trim 13
+
+Trimming13 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("76.2"))
+summary(as.factor(Trimming13$Bat_ID))
+
+Trimming13 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim13 <- Trimming13 |>
+  filter(NumberDate >= "1749987600")
+
+Trim13 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# Trim 14
+
+Trimming14 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("78.3"))
+summary(as.factor(Trimming14$Bat_ID))
+
+Trimming14 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim14 <- Trimming14 |>
+  filter(NumberDate >= "1750006800")
+
+Trim14 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+#Trim 15
+
+Trimming15 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("83.2"))
+summary(as.factor(Trimming15$Bat_ID))
+
+Trimming15 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim15 <- Trimming15 |>
+  filter(NumberDate >= "1749920400")
+
+Trim15 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# Trim 16
+
+Trimming16 <- allbatresults2 |> 
+  filter(Bat_ID %in% c("26"))
+summary(as.factor(Trimming16$Bat_ID))
+
+Trimming16 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+Trim16 <- Trimming16 |>
+  filter(NumberDate >= "1748968200")
+
+Trim16 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+
+LTrimmed <- bind_rows(Trim1, Trim2, Trim3, Trim4, Trim5, Trim6, Trim7, Trim8, Trim9, Trim10, Trim11, Trim12, Trim13, Trim14, Trim15, Trim16)
+
+
+
+summary(as.factor(LTrimmed$Bat_ID))
+summary(as.factor(allbatresults2$Bat_ID))
+```
+
+## Right trim again 
+
+```{r}
+# Right trim 1
+RTrimming1 <- LTrimmed |> 
+  filter(Bat_ID %in% c("64.1"))
+summary(as.factor(RTrimming1$Bat_ID))
+
+RTrimming1 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+RTrim1 <- RTrimming1 |>
+  filter(NumberDate <= "1749673200")
+
+RTrim1 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# Right trim 2
+RTrimming2 <- LTrimmed |> 
+  filter(Bat_ID %in% c("68.1"))
+summary(as.factor(RTrimming2$Bat_ID))
+
+RTrimming2 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+RTrim2 <- RTrimming2 |>
+  filter(NumberDate <= "1748880600")
+
+RTrim2 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# Right trim 3
+
+RTrimming3 <- LTrimmed |> 
+  filter(Bat_ID %in% c("78.2"))
+summary(as.factor(RTrimming3$Bat_ID))
+
+RTrimming3 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+RTrim3 <- RTrimming3 |>
+  filter(NumberDate <= "1749931200")
+
+RTrim3 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# Right Trim 4 
+
+RTrimming4 <- LTrimmed |> 
+  filter(Bat_ID %in% c("22"))
+summary(as.factor(RTrimming4$Bat_ID))
+
+RTrimming4 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+RTrim4 <- RTrimming4 |>
+  filter(NumberDate <= "1749742800")
+
+RTrim4 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# RTrim 5
+
+RTrimming5 <- LTrimmed |> 
+  filter(Bat_ID %in% c("21"))
+summary(as.factor(RTrimming5$Bat_ID))
+
+RTrimming5 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+RTrim5 <- RTrimming5 |>
+  filter(NumberDate <= "1749439200")
+
+RTrim5 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+# RTrim 6
+
+RTrimming6 <- LTrimmed |> 
+  filter(Bat_ID %in% c("3"))
+summary(as.factor(RTrimming6$Bat_ID))
+
+RTrimming6 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+RTrim6 <- RTrimming6 |>
+  filter(NumberDate <= "1749276000")
+
+RTrim6 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+
+#Keeping all results from LTrimmed besides the ones that were right trimmed again
+
+RTrimmed_Temp <- LTrimmed |> 
+  filter(!Bat_ID %in% c("64.1", "68.1", "78.2", "22", "21", "3"))
+
+summary(as.factor(RTrimmed_Temp$Bat_ID))
+
+RTrimmed <- bind_rows(RTrimmed_Temp, RTrim1, RTrim2, RTrim3, RTrim4, RTrim5, RTrim6)
+
+summary(as.factor(RTrimmed$Bat_ID))
+
+```
+
+Now I want to look at the data and make sure it looks right and see what else needs to be trimmed
+
+```{r}
+plotly_fun3 <- function(arg1) {
+  plot_ly(data = RTrimmed[Bat_ID == arg1],
+          x = ~DateTime, y = ~Temperature,
+          type = 'scatter', mode = 'lines') %>%
+    layout(xaxis = list(title = arg1))
+  }
+
+```
+
+
+```{r}
+lapply(batnames, plotly_fun3)
+```
+
+
+
+Dropping bad data and gaps
+
+```{r}
+#
+# Dropping 1
+Dropping1 <- RTrimmed |> 
+  filter(Bat_ID %in% c("68.2"))
+
+summary(as.factor(Dropping1$Bat_ID))
+
+Drop1 <- Dropping1 |>
+  filter(NumberDate <= "1750024800" | NumberDate >= "1750090800")
+
+summary(as.factor(Drop1$Bat_ID))
+
+
+#Dropping 2
+
+Dropping2 <- RTrimmed |> 
+  filter(Bat_ID %in% c("83.2"))
+
+summary(as.factor(Dropping2$Bat_ID))
+
+Drop2 <- Dropping2 |>
+  filter(NumberDate <= "1750009200" | NumberDate >= "1750090800")
+
+
+# Dropping bad data I actually dropped these earlier will remove from code
+
+# Bad_Drop <- RTrimmed |> 
+#  filter(Bat_ID %in% "64.2") |> 
+#  filter(Temperature > "10") |> 
+#  filter(Temperature < "45")
+
+
+# I also have mutliple loggers from the same bat, so I am going to merge these together so it shows up as one bat instead of two. 
+
+Bat_78.2 <- RTrimmed |> 
+  filter(Bat_ID == "78.2")
+Bat_78.3 <- RTrimmed |> 
+  filter(Bat_ID == "78.3")
+
+Bat_78.9 <- bind_rows(Bat_78.2, Bat_78.3) |>  
+  mutate(ID = "78.9" ) |> 
+  select(DateTime, NumberDate, Temperature, ID) |> 
+  rename(Bat_ID = ID)
+
+# Removing the edited data in this chunk from RTrimmed so I can merge all the data back together
+
+
+allbatresults3.temp <- RTrimmed |> 
+  filter(!Bat_ID %in% c("68.2", "83.2", "78.2", "78.3"))
+
+clean_results <- bind_rows(allbatresults3.temp, Drop2, Drop1, Bat_78.9)
+
+
+summary(as.factor(clean_results$Bat_ID))
+```
+
+I need to remove some names from batnames. There are a handful of loggers from bats that are excluded from the study or have too few data points and were dropped during trimming
+
+```{r}
+
+KeptBatNames <- unique(clean_results$Bat_ID)
+
+plotly_fun4 <- function(arg1) {
+  plot_ly(data = clean_results[Bat_ID == arg1],
+          x = ~DateTime, y = ~Temperature,
+          type = 'scatter', mode = 'lines') %>%
+    layout(xaxis = list(title = arg1))
+  }
+
+```
+
+
+```{r}
+lapply(KeptBatNames, plotly_fun4)
+```
+
+
+
+```{r}
+write_tsv(clean_results, file = "TrimmedTemperatureLoggerData.long.tsv")
+```
+
+
+## Ambient Temp
+We had two cohorts of bats for non thermally challenged bats. They followed the exact same timeline but were treated on different days of the week. This was done to limit handling time of bats at one time. Because of this, ambient temperature is different for group 1 D21 bats and group 2 D21 bats.
+
+```{r}
+ Union_Ambient <- read_excel("MOCO Data/Roost Temps/MOCO_Union_Ambient.xlsx") |> 
+  rename(DateTime = "Date/Time")  |> # read in ambient temp
+  mutate (DateTime = as.POSIXct(DateTime)) |> # correct format
+  mutate(NumberDate = as.numeric(DateTime)) #add column changing date/time to numeric
+
+plot_ly(Union_Ambient,x = ~DateTime, y = ~Value,
+          type = 'scatter', mode = 'lines')
+
+Rivendell_Top_D0 <- read_excel("MOCO Data/Roost Temps/Rivendell-Cold_Top_D0.xlsx") |> rename(DateTime = "Date/Time") |> # read in temp from top of incubator from D0 thermal challenge 
+  mutate(DateTime = as.POSIXct(DateTime)) |> 
+  mutate(Shift_date = DateTime - seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+  mutate(NumberDate = as.numeric(Shift_date))
+
+Rivendell_Bottom_D0 <- read_excel("MOCO Data/Roost Temps/Rivendell-Cold_Bottom_D0.xlsx") |> rename(DateTime = "Date/Time") |> # read in temp from top of incubator from D0 thermal challenge
+  mutate(DateTime = as.POSIXct(DateTime)) |> 
+   mutate(Shift_date = DateTime - seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+  mutate(NumberDate = as.numeric(Shift_date))
+
+Rivendell_Primary <- Rivendell_Top_D0 |> 
+  left_join(Rivendell_Bottom_D0, join_by(NumberDate)) |>  # joining the top and bottom temperature data from the primary thermal challenge
+  as.data.table()
+
+Rivendell_Primary <- Rivendell_Primary |> 
+  select(DateTime.x, NumberDate, Value.x, Value.y, Unit.x)  |> # keeping certain columns 
+  rename(Unit = "Unit.x", # renaming columns
+         Top = "Value.x",
+         Bottom = "Value.y",
+         DateTime = "DateTime.x") |> 
+  drop_na(Bottom) # dropping NA's because loggers were not started and stopped at the exact same time
+glimpse(Rivendell_Primary)
+
+# because I have temperature from the top and bottom of the incubator and there might be slight differences between them and I don't know which temp the bats are exposed to. I am going to get the average
+
+Rivendell_Primary <- Rivendell_Primary |> 
+  mutate(avg_pri = rowMeans(pick("Top", "Bottom"))) 
+  
+```
+
+ Now I have to do the same thing but for the pre- thermal challenge
+```{r}
+Rivendell_Top_Pre <- read_excel("MOCO Data/Roost Temps/Rivendell-Cold_Top_D-5.xlsx") |> # read in temp from top of incubator from D0 thermal challenge
+  rename(DateTime = "Date/Time") |> 
+  mutate(DateTime = as.POSIXct(DateTime)) |> 
+  mutate(Shift_date = DateTime - seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+  mutate(NumberDate = as.numeric(Shift_date))
+
+Rivendell_Bottom_Pre <- read_excel("MOCO Data/Roost Temps/Rivendell-Cold_Bottom_D-5.xlsx") |> rename(DateTime = "Date/Time") |> # read in temp from top of incubator from D0 thermal challenge
+  mutate(DateTime = as.POSIXct(DateTime)) |> 
+  mutate(Shift_date = DateTime - seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+  mutate(NumberDate = as.numeric(Shift_date))
+
+Rivendell_Pre <- Rivendell_Top_Pre |> 
+  left_join(Rivendell_Bottom_Pre, join_by(NumberDate)) |> # joining the top and bottom temperature data from the primary thermal challenge
+  as.data.table()
+
+Rivendell_Pre <- Rivendell_Pre |> 
+  select(DateTime.x, NumberDate, Value.x, Value.y, Unit.x)  |> # keeping certain columns 
+  rename(Unit = "Unit.x", # renaming columns
+         Top = "Value.x",
+         Bottom = "Value.y",
+         DateTime = "DateTime.x") |> 
+  drop_na(Bottom) # dropping NA's because loggers were not started and stopped at the exact same time
+glimpse(Rivendell_Pre)
+
+# because I have temperature from the top and bottom of the incubator and there might be slight differences between them and I don't know which temp the bats are exposed to. I am going to get the average
+
+Rivendell_Pre <- Rivendell_Pre |> 
+  mutate(avg_pre = rowMeans(pick("Top", "Bottom"))) 
+
+```
+
+Now I want to only keep the data from the actual thermal challenges
+Start time for the pre-thermal challenge was 12:05 23-May-2025 to 01:17 24-May-2025
+Start Time for primary thermal challenge was 16:36 26-May-2025 to 00:44 27-May-2025
+
+```{r}
+Rivendell_Primary_Trim <- Rivendell_Primary |> 
+  filter(NumberDate > "1748277361", 
+         NumberDate < "1748306641") |> 
+  select(DateTime, NumberDate, avg_pri) |> 
+  rename(Value = "avg_pri")
+
+Rivendell_Pre_Trim <- Rivendell_Pre |> 
+  filter(NumberDate > "1748001901", 
+         NumberDate < "1748049421") |> 
+  select(DateTime, NumberDate, avg_pre) |> 
+  rename(Value = "avg_pre")
+```
+
+Okay, now that's done.. I need to take these times and add them to the corresponding rows. I think what I am going to do is separate the boost from the primary results, because my primary result bats were all in an incubator at that time. 
+```{r}
+Primary_results_working <- clean_results |> 
+  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) # results from primary immunization
+Secondary_results_working <- clean_results |> 
+  filter(!Bat_ID %in% c("64.1", "68.1", "74.1")) # results from secondary immunization
+
+# trim down the ambient data to the dates and time loggers were attached to the bats
+Ambient_primary_working <- Union_Ambient |> 
+  filter(NumberDate <= "1748736000", 
+         NumberDate >= "1747736400")
+
+# now I need to filter out times when the bats were in the incubators instead of outside with ambient temperature
+AP_Trim1 <- Ambient_primary_working |> 
+  filter(NumberDate <= "1748001901")
+
+AP_Trim2 <- Ambient_primary_working |> 
+   filter(NumberDate >= "1748049421",
+          NumberDate <= "1748277361")
+
+Ap_Trim3 <- Ambient_primary_working |> 
+  filter(NumberDate >= "1748306641")
+          
+# Now I am going to combine the incubator temps and ambient temps into one dataframe in one column. This willl make calculating my delta T much easier.. I think.... 
+
+Primary_exposure_temp <- bind_rows(AP_Trim1, Rivendell_Pre_Trim, AP_Trim2, Rivendell_Primary_Trim, Ap_Trim3)
+
+Primary_results_working <- Primary_results_working |>  
+  left_join(Primary_exposure_temp, join_by("NumberDate"))
+
+Primary_results_working <- Primary_results_working |> 
+  select(Bat_ID, DateTime.x, NumberDate, Temperature, Value, Unit) |> 
+  rename(AmbientT = "Value",
+         DateTime = "DateTime.x")
+
+Primary_results <- Primary_results_working |> 
+  mutate(deltaT = Temperature - AmbientT)
+
+Secondary_results <- Secondary_results_working |> 
+  left_join(Union_Ambient, join_by(NumberDate))
+
+Secondary_results <- Secondary_results |> 
+  select(Bat_ID, DateTime.x, NumberDate, Temperature, Value, Unit) |> 
+  rename(AmbientT = "Value",
+         DateTime = "DateTime.x")
+
+Secondary_results <- Secondary_results |> 
+  mutate(deltaT = Temperature - AmbientT)
+
+```
+
+
+
+### Shifting Data
+
+We had two cohorts of bats for non thermally challenged bats. They followed the exact same timeline but were treated on different days of the week. This was done to limit handling time of bats at one time. Because of this, ambient temperature is different for group 1 D21 bats and group 2 D21 bats. 
+
+```{r}
+SecondaryBatNames <- unique(Secondary_results$Bat_ID)
+
+Secondary_Met <- no_hot_met %>%
+  filter(Bat_ID %in% SecondaryBatNames) |> 
+  select(! "Logger location") |> 
+  select(! "Notes")
+
+summary(as.factor(Secondary_Met$Treatment))
+# shows 6 TC bats but I thought we had 7.. look into this.
+
+SecondaryResultsMet <- Secondary_results |> 
+left_join(Secondary_Met, by = join_by(Bat_ID))
+
+SecondaryResultsMet %>%
+  group_by(Bat_ID) %>%
+  summarize(Min_DateTime = min(DateTime), Max_DateTime = max(DateTime))
+```
+
+```{r}
+SecondaryResultsMet$time_aligned <- SecondaryResultsMet$DateTime
+
+md.pattern(SecondaryResultsMet, rotate.names = TRUE)
+
+SecondaryResultsMet <- SecondaryResultsMet |> 
+  select(! "Serial Number") |> 
+  select(! "Logger Name") |> 
+  select(! "Filename")
+
+SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] - lubridate::days(2)
+
+SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] - lubridate::days(11)
+
+Final_Secondary <- SecondaryResultsMet |> 
+  select(Bat_ID, time_aligned, Temperature, deltaT)
+
+Final_Secondary <- Final_Secondary |> 
+  rename(DateTime = "time_aligned") |> 
+  mutate(NumberDate = as.numeric(DateTime))
+boostresultsmet$shift_time_num <- as.numeric(boostresultsmet$shift_time_num)
+
+Final_Primary <- Primary_results |> 
+  select(Bat_ID, DateTime, NumberDate, Temperature, deltaT)
+
+Primary_Met <- clean_met |> 
+  filter(Bat_ID %in% c("64.1", "68.1", "74.1"))
+
+Secondary_Ambient <- Union_Ambient |> 
+  filter(NumberDate > "1748967000" , 
+          NumberDate < "1749772800")
+```
+
+I shifted the data so now data all shows d21 on June 5th, the same day as D21 for Group 1. 
+I think I have all the data wrangling down so I am going to export some tsv with my final primary data, secondary data, metadata for both immunizations, and ambient temperature.
+
+```{r}
+write_tsv(Secondary_Met, file = "MOCO2025Secondary_Met.tsv")
+write_tsv(Final_Primary, file = "MOCO2025PrimaryTemperature.tsv")
+write_tsv(Final_Secondary, file = "MOCO2025SecondaryTemperature.tsv")
+write_tsv(Primary_Met, file = "MOCO2025Primary_Met.tsv")
+write_tsv(Ambient_primary_working, file = "MOCO2025Primary_Ambient.tsv")
+write_tsv(Secondary_Ambient, file = "MOCO2025Secondary_Ambient.tsv")
+```
+
