@@ -104,10 +104,6 @@ Secondary_Met <- read.delim("MOCO2025Secondary_Met.tsv", # read in metadata for 
 ```
 
 
-### Shifting Data
-
-We had two cohorts of bats for non thermally challenged bats. They followed the exact same timeline but were treated on different days of the week. This was done to limit handling time of bats at one time. Because of this, ambient temperature is different for group 1 D21 bats and group 2 D21 bats. 
-
 ```{r}
 SecondaryBatNames <- unique(Secondary_Results$Bat_ID)
 PrimaryBatNames <- unique(Primary_Results$Bat_ID)
@@ -118,113 +114,61 @@ PrimaryBatNames <- unique(Primary_Results$Bat_ID)
 
 ```{r}
  Primary_Met <- Primary_Met |> 
-  mutate(id = Bat_ID)
+  mutate(id = Bat_ID) |> 
+  mutate(id = as.character(id))
 
 Primary_Results <- Primary_Results |> 
   mutate(id = Bat_ID) |> 
-  mutate(t = NumberDate)
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
 
  Primary_met2 <- data.table::data.table(Primary_Met, key = "id")
  Primary_results2 <- data.table::data.table(Primary_Results, key = "id")
 
  primary_behavr <- behavr(Primary_results2, Primary_met2)
  summary(primary_behavr)
+ 
+ glimpse(primary_behavr)
+
 ```
 
 ### Cold Bat Behavr 
 Talk with ken about this chunk..
 ```{r}
-
-# ticks_7am <- seq(
-#   from = floor_date(as.POSIXct(min(primary_behavr$t), origin = "1970-01-01", tz = "UTC"), "day") + hours(7),
-#   to   = ceiling_date(as.POSIXct(max(primary_behavr$t), origin = "1970-01-01", tz = "UTC"), "day") + hours(7),
-#   by   = "1 day"
-# )
- 
- MOCO_Primary <- primary_behavr |>
-   ggetho(aes(x = t, y = Temperature, colour = Bat_ID)) +
-   stat_pop_etho() +
-   # Use phase instead of offset to shift the LD bar
-   stat_ld_annotations(
-     ld_colours = c("white", "black"),
-     period = hours(24), 
-     phase = hours(7) 
-   ) +
-   facet_grid(id ~ .) +
-   # To avoid the 'Scale for x is already present' warning, 
-   # we modify the existing scale rather than adding a new one.
-   # Alternatively, keep your scale but ignore the warning, 
-   # or define time settings inside ggetho()
-   scale_x_continuous(
-     name = "Date/time",
-     #breaks = as.numeric(ticks_7am),
-     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M")
-   )
- MOCO_Cold <- cold_behavr |>
-   ggplot(aes(x = t, y = Temperature, colour = id)) +
-   stat_pop_etho() +
-   stat_ld_annotations(
-     ld_colours = c("white", "black"),
-     period = 86400,
-     phase = 7 * 3600
-   ) +
-   facet_grid(id ~ .) +
-   scale_x_continuous(
-     name = "Date/time",
-     breaks = as.numeric(ticks_7am),
-     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M")
-   )
- 
-print(MOCO_Primary)
- 
-cold_behavr |>
-   ggetho(aes(x = t, y = Temperature, colour = Bat_ID)) +
-   stat_pop_etho() +
-   stat_ld_annotations(
-     ld_colours = c("white", "black"),
-        # 12h light : 12h dark, in seconds
-     offset = 7 * 3600) +           # <<< shift start by 7 hours (7 AM)
-   facet_grid(id ~ .) +
-     scale_x_continuous(
-     name = "Date/time",
-     breaks = as.numeric(ticks_7am),
-     labels = function(x)
-       format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M")) 
- 
-  ggsave("MOCO_Cold.jpeg", plot = MOCO_Cold, device = jpeg(), width = 12, height = 6.67)
   
-#  
-#  cold_behavr |>
-#   ggetho(aes(x = t, y = Temperature, colour = id)) +
-#   stat_pop_etho() +
-#   stat_ld_annotations(
-#     ld_colours = c( "black", "white")) +
-#   facet_grid(id ~ .) +
-#     scale_x_continuous(
-#     name = "Date/time",
-#     breaks = as.numeric(ticks_7am),
-#     labels = function(x)
-#       format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M")) +  theme(
-#     axis.text = element_text(size = 14),       # axis tick labels
-#     axis.title = element_text(size = 16),      # axis titles
-#     legend.text = element_text(size = 13),     # legend labels
-#     legend.title = element_text(size = 15),    # legend title
-#     strip.text = element_text(size = 12)       # facet labels
-#   )  -> MOCO_Cold
-# 
-# ggsave("MOCO_Cold.jpeg", plot = MOCO_Cold, device = jpeg(), width = 12, height = 6.67)
+  primary_behavr |>
+  ggetho(aes(x = t, y = Temperature, colour = id))+
+  stat_pop_etho() +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,
+    l_duration = 43200, 
+    ld_colours = c( "white", "black")) +
+   # ratio = c(12, 12)* 3600) +
+  facet_grid(id ~ .) +
+    scale_x_continuous(
+    name = "Date/time",
+    breaks = seq(1747767600, max(primary_behavr$t), by = 86400), 
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
+    expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) -> MOCO_Primary
+ 
+ggsave("MOCO_Primary.jpeg", plot = MOCO_Primary, device = jpeg(), width = 12, height = 6.67)
 ```
+It is plotting and looks fine, but I am getting some errors. Need Ken to look at it. I also want to add shaded regions that show when they are being handled. But I actually might not do this because these bats are handled every single night for feeding.. ugh stupid MOCO
 
 ## Behavr Analysis
 
 ```{r}
 
  Secondary_Met <- Secondary_Met |> 
-  mutate(id = Bat_ID)
+  mutate(id = Bat_ID) |> 
+  mutate(id = as.character(id))
 
 Secondary_Results <- Secondary_Results |> 
   mutate(id = Bat_ID) |> 
-  mutate(t = NumberDate)
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
 
  Secondary_met2 <- data.table::data.table(Secondary_Met, key = "id")
  Secondary_results2 <- data.table::data.table(Secondary_Results, key = "id")
@@ -243,138 +187,115 @@ ggetho(secondary_behavr, aes(z = Temperature, y = Treatment)) + stat_tile_etho()
 
 ```{r, warning=FALSE}
 
-ticks_7am <- seq(
-  from = floor_date(as.POSIXct(min(boost_behavr$t), origin = "1970-01-01", tz = "UTC"), "day") + hours(7),
-  to   = ceiling_date(as.POSIXct(max(boost_behavr$t), origin = "1970-01-01", tz = "UTC"), "day") + hours(7),
-  by   = "1 day"
-)
-
-boost_behavr |>
-  ggetho(aes(x = t, y = Temperature, colour = Treatment)) +
+secondary_behavr |>
+  ggetho(aes(x = t, y = Temperature, colour = Treatment))+
   stat_pop_etho() +
   stat_ld_annotations(
-    ld_colours = c( "white", "black"),
-    ratio = c(12, 12)* 3600) +
+    period = 86400,
+    phase = 25200,
+    l_duration = 43200, 
+    ld_colours = c( "white", "black")) +
   facet_grid(Treatment ~ .) +
     scale_x_continuous(
     name = "Date/time",
-    labels = function(x)
-      format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M"))
-
-
-cols <- c(
-  "eVLP alone" = "#F8776D",
-  "eVLP+cGAMP" = "#ABA300",
-  "eVLP+LPS"    = "#00C19A",
-  "eVLP+POLY I:C" = "#00A9FF",
-  "SHAM"        = "#ED68ED",
-  "TC"          = "#E68613")
-
-boost_behavr |>
-  ggetho(aes(x = t, y = Temperature, colour = Treatment)) +
-  stat_pop_etho() +
-  stat_ld_annotations(
-    ld_colours = c("white", "black"),
-       # 12h light : 12h dark, in seconds
-    offset = 7 * 3600) +           # <<< shift start by 7 hours (7 AM)
-  facet_grid(Treatment ~ .) +
-    scale_x_continuous(
-    name = "Date/time",
-    breaks = as.numeric(ticks_7am),
-    labels = function(x)
-      format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M")) +
-   scale_colour_manual(name = "Treatment", values = cols) +
-  scale_fill_manual(name = "Treatment", values = cols) +
-  theme(
-    axis.text = element_text(size = 14),       # axis tick labels
-    axis.title = element_text(size = 16),      # axis titles
-    legend.text = element_text(size = 13),     # legend labels
-    legend.title = element_text(size = 15),    # legend title
-    strip.text = element_text(size = 12)       # facet labels
-  ) 
-
-unique(boost_behavr$Treatment)
-
-# ggsave("MOCO_Boost.jpeg", plot = MOCO_Boost, device = jpeg(), width = 16.4, height = 9.5)
+    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
+    expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) -> MOCO_Secondary
+ 
+ggsave("MOCO_Secondary.jpeg", plot = MOCO_Secondary, device = jpeg(), width = 12, height = 6.67)
 
 ```
 
 ```{r, warning=FALSE}
-#ggetho(bat_behavr, aes(y=Temperature, colour=Treatment), time_wrap = hours(24)) +
-#      stat_pop_etho() +
-#      stat_ld_annotations() +
-#      facet_grid(Treatment ~ .) +
-#      scale_y_continuous(name= "Temperature")
+# i don't think this is working
+ggetho(primary_behavr, aes(y= Temperature, colour=id), time_wrap = 86400) +
+      stat_pop_etho() +
+      stat_ld_annotations() +
+      facet_grid(id ~ .) +
+      scale_y_continuous(name= "Temperature")
+```
+
+
+```{r}
+ggetho(secondary_behavr, aes(y= Temperature, colour=Treatment), time_wrap = 86400) +
+      stat_pop_etho() +
+      stat_ld_annotations() +
+      facet_grid(Treatment ~ .) +
+      scale_y_continuous(name= "Temperature")
 ```
 
 ```{r Sham, warning=FALSE}
-bat_met_sham <- bat_met2 %>%
+
+met_sham <- Secondary_met2 %>%
   filter(Treatment == "SHAM")
-bat_data_sham <- bat_data2 %>%
-  filter(id %in% bat_met_sham$id)
-bat_behavr_sham <- behavr(bat_data_sham, bat_met_sham)
+sham_results <- Secondary_results2 %>%
+  filter(id %in% met_sham$id)
+sham_behavr <- behavr(sham_results, met_sham)
 
-bat_behavr_sham %>%
-  ggetho(aes(y=Temperature, colour=id)) +
-      stat_pop_etho() +
-      stat_ld_annotations() +
-      facet_grid(id ~ .)
-```
-
-```{r eVLP, warning=FALSE}
-bat_met_eVLP <- bat_met2 %>%
-  filter(Treatment == "eVLP")
-bat_data_eVLP <- bat_data2 %>%
-  filter(id %in% bat_met_eVLP$id)
-bat_behavr_eVLP <- behavr(bat_data_eVLP, bat_met_eVLP)
-
-bat_behavr_eVLP %>%
-  ggetho(aes(y=Temperature, colour=id)) +
-      stat_pop_etho() +
-      stat_ld_annotations() +
-      facet_grid(id ~ .)
+sham_behavr %>%
+ ggetho(aes(x = t, y = Temperature, colour = id))+
+  stat_pop_etho() +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,
+    l_duration = 43200, 
+    ld_colours = c( "white", "black")) +
+  facet_grid(id ~ .) +
+    scale_x_continuous(
+    name = "Date/time",
+    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
+    expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 ```
 
 ```{r eVLP_LPS, warning=FALSE}
-bat_met_eVLP_LPS <- bat_met2 %>%
-  filter(Treatment == "eVLP LPS")
-bat_data_eVLP_LPS <- bat_data2 %>%
-  filter(id %in% bat_met_eVLP_LPS$id)
-bat_behavr_eVLP_LPS <- behavr(bat_data_eVLP_LPS, bat_met_eVLP_LPS)
+met_LPS <- Secondary_met2 %>%
+  filter(Treatment == "eVLP+LPS")
+LPS_results <- Secondary_results2 %>%
+  filter(id %in% met_LPS$id)
+LPS_behavr <- behavr(LPS_results, met_LPS)
 
-bat_behavr_eVLP_LPS %>%
-  ggetho(aes(y=Temperature, colour=id)) +
-      stat_pop_etho() +
-      stat_ld_annotations() +
-      facet_grid(id ~ .)
+LPS_behavr %>%
+ ggetho(aes(x = t, y = Temperature, colour = id))+
+  stat_pop_etho() +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,
+    l_duration = 43200, 
+    ld_colours = c( "white", "black")) +
+  facet_grid(id ~ .) +
+    scale_x_continuous(
+    name = "Date/time",
+    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
+    expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 ```
 
-```{r eVLP_POLY, warning=FALSE}
-bat_met_eVLP_POLY <- bat_met2 %>%
-  filter(Treatment == "eVLP POLY")
-bat_data_eVLP_POLY <- bat_data2 %>%
-  filter(id %in% bat_met_eVLP_POLY$id)
-bat_behavr_eVLP_POLY <- behavr(bat_data_eVLP_POLY, bat_met_eVLP_POLY)
+```{r TC, warning=FALSE}
+met_TC <- Secondary_met2 %>%
+  filter(Treatment == "TC")
+TC_results <- Secondary_results2 %>%
+  filter(id %in% met_TC$id)
+TC_behavr <- behavr(TC_results, met_TC)
 
-bat_behavr_eVLP_POLY %>%
-  ggetho(aes(y=Temperature, colour=id)) +
-      stat_pop_etho() +
-      stat_ld_annotations() +
-      facet_grid(id ~ .)
-```
-
-```{r eVLP_cGAMP, warning=FALSE}
-bat_met_eVLP_cGAMP <- bat_met2 %>%
-  filter(Treatment == "eVLP cGAMP")
-bat_data_eVLP_cGAMP <- bat_data2 %>%
-  filter(id %in% bat_met_eVLP_cGAMP$id)
-bat_behavr_eVLP_cGAMP <- behavr(bat_data_eVLP_cGAMP, bat_met_eVLP_cGAMP)
-
-bat_behavr_eVLP_cGAMP %>%
-  ggetho(aes(y=Temperature, colour=id)) +
-      stat_pop_etho() +
-      stat_ld_annotations() +
-      facet_grid(id ~ .)
+TC_behavr %>%
+ ggetho(aes(x = t, y = Temperature, colour = id))+
+  stat_pop_etho() +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,
+    l_duration = 43200, 
+    ld_colours = c( "white", "black")) +
+  facet_grid(id ~ .) +
+    scale_x_continuous(
+    name = "Date/time",
+    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
+    expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 ```
 
 ```{r, warning=FALSE}
@@ -400,76 +321,6 @@ allbatresults3 %>%
             Min_Temp = min(Temperature), Max_Temp = max(Temperature))
 ```
 
-We can tell that the loggers on 2023-04-16 were all programmed uniformly and collected 42 timepoints before the new start time of midnight on 2023-04-16. 
-While the 2023-04-16 loggers have two different programming regimens. Some collected 186 and others collected 330 earlier datapoints. 
-
-Bottom line, there are three different starting timepoints: 43, 187, and 331.
-I will substract the appropriate value from the Timepoint column after I separate the data.
-
-
-```{r}
-left_trimmed_results %>%
-  group_by(batnames) %>%
-  summarize(minTimepoint = min(Timepoint))
-allbatresults %>%
-  group_by(batnames) %>%
-  summarize(minTimepoint = min(Timepoint), maxTimepoint = max(Timepoint), 
-            minTemp = min(Temperature), maxTemp = max(Temperature)) %>%
-  arrange(maxTimepoint)
-```
-
-
-There are three different batches of treatment, as expected:
-2023-03-27 2023-03-29 2023-03-31 were the initial immunization dates (prime)
-Day 21 for each batch was, therefore:
-2023-04-17 2023-04-19 2023-04-21
-
-```{r}
-summary(as.factor(bat_met2$Treatment_date))
-first_treatment <- bat_met2 %>%
-  filter(Treatment_date == ymd("2023-03-27"))
-second_treatment <- bat_met2 %>%
-  filter(Treatment_date == ymd("2023-03-29"))
-third_treatment <- bat_met2 %>%
-  filter(Treatment_date == ymd("2023-03-31"))
-
-first_results <- allbatresults3 %>%
-  filter(batnames %in% first_treatment$id)
-second_results <- allbatresults3 %>%
-  filter(batnames %in% second_treatment$id)
-third_results <- allbatresults3 %>%
-  filter(batnames %in% third_treatment$id)
-
-first_results_trim <- first_results %>%
-  filter(DateTime <= ymd("2023-04-17")) %>%
-  mutate(Timepoint = Timepoint - 42) ## My attempt to standardize the start time. 
-second_results_trim <- second_results %>%
-  filter(DateTime <= ymd("2023-04-19")) %>%
-  mutate(Timepoint = Timepoint - 330) ## My attempt to standardize the start time. 
-third_results_trim <- third_results %>%
-  filter(DateTime <= ymd("2023-04-21")) %>%
-  mutate(Timepoint = Timepoint - 186) ## My attempt to standardize the start time. 
-
-pretreatment_results <- bind_rows(first_results_trim, second_results_trim) %>%
-  bind_rows(third_results_trim)
-
-select_bat_results <- pretreatment_results %>%
-  mutate(Timepoint = Timepoint*10*60) %>%
-  select(id = batnames, t = Timepoint, Temperature) %>%
-  filter(id != "3N8245")
-head(select_bat_results)
-  
-bat_data_preboost <- clean_met3 %>%
-  select(id) %>%
-  left_join(select_bat_results, by = join_by(id))
-str(bat_data_preboost)
-
-bat_data_preboost2 <- data.table::data.table(bat_data_preboost, key = "id")
-
-bat_behavr_preboost <- behavr(bat_data_preboost2, bat_met2)
-```
-
-Note that I think that the last day shown on these plots is the booster immunization day.
 
 ```{r, warning=FALSE}
 # summary(bat_behavr_preboost)
@@ -489,31 +340,7 @@ That didn't work because ggetho kept saying that there was less than 3 days of d
 Secondly just kept the above format but used more data.
 
 ```{r}
-# first_results_post <- first_results %>%
-#   filter(DateTime >= ymd("2023-04-17")) %>%
-#   filter(DateTime <= ymd("2023-04-22")) %>%
-#   mutate(Timepoint = Timepoint - 474) ## My attempt to standardize the start time. 
-# second_results_post <- second_results %>%
-#   filter(DateTime >= ymd("2023-04-19")) %>%
-#   filter(DateTime <= ymd("2023-04-24")) %>%
-#   mutate(Timepoint = Timepoint - 762)
-# third_results_post <- third_results %>%
-#   filter(DateTime >= ymd("2023-04-21")) %>%
-#   filter(DateTime <= ymd("2023-04-26")) %>%
-#   mutate(Timepoint = Timepoint - 906)
 
-first_results_post <- first_results %>%
-  filter(DateTime <= ymd("2023-04-22")) %>%
-  mutate(Timepoint = Timepoint - 42) ## My attempt to standardize the start time. 
-second_results_post <- second_results %>%
-  filter(DateTime <= ymd("2023-04-24")) %>%
-  mutate(Timepoint = Timepoint - 330) ## My attempt to standardize the start time. 
-third_results_post <- third_results %>%
-  filter(DateTime <= ymd("2023-04-26")) %>%
-  mutate(Timepoint = Timepoint - 186) ## My attempt to standardize the start time. 
-
-posttreatment_results <- bind_rows(first_results_post, second_results_post) %>%
-  bind_rows(third_results_post)
 
 post_bat_results <- posttreatment_results %>%
   mutate(Timepoint = Timepoint*10*60) %>%
@@ -715,15 +542,6 @@ bat_sham <- bat_met2 %>%
 lapply(bat_sham, timeVariation_fun)
 ```
 
-```{r eVLP only}
-bat_eVLP <- bat_met2 %>%
-  filter(Treatment == "eVLP") %>%
-  select(id) %>%
-  pull
-lapply(bat_eVLP, timeVariation_fun)
-```
-
-
 ```{r eVLP LPS}
 bat_LPS <- bat_met2 %>%
   filter(Treatment == "eVLP LPS") %>%
@@ -732,20 +550,12 @@ bat_LPS <- bat_met2 %>%
 lapply(bat_LPS, timeVariation_fun)
 ```
 
-```{r eVLP POLY}
-bat_POLY <- bat_met2 %>%
-  filter(Treatment == "eVLP POLY") %>%
+```{r TC}
+bat_eVLP <- bat_met2 %>%
+  filter(Treatment == "eVLP") %>%
   select(id) %>%
   pull
-lapply(bat_POLY, timeVariation_fun)
-```
-
-```{r eVLP cGAMP}
-bat_cGAMP <- bat_met2 %>%
-  filter(Treatment == "eVLP cGAMP") %>%
-  select(id) %>%
-  pull
-lapply(bat_cGAMP, timeVariation_fun)
+lapply(bat_eVLP, timeVariation_fun)
 ```
 
 ## Tent Logger Data
@@ -831,20 +641,12 @@ That looks good. Let's plot each group at a time.
 lapply(bat_sham, timeVariation_fun2)
 ```
 
-```{r eVLP-Tent}
+```{r eVLP + LPS -Tent}
 lapply(bat_eVLP, timeVariation_fun2)
 ```
 
-```{r LPS-Tent}
+```{r TC -Tent}
 lapply(bat_LPS, timeVariation_fun2)
-```
-
-```{r POLY-Tent}
-lapply(bat_POLY, timeVariation_fun2)
-```
-
-```{r cGAMP-Tent}
-lapply(bat_cGAMP, timeVariation_fun2)
 ```
 
 Okay, because the "difference" function worked fine, I don't think that I need to reorganize the data. 
@@ -904,21 +706,14 @@ timeVariation_fun3("1N8476", 5)
 lapply(bat_sham, timeVariation_fun3, 3)
 ```
 
-```{r eVLP-deltaT}
+```{r eVLP + LPS -deltaT}
 lapply(bat_eVLP, timeVariation_fun3, 3)
 ```
 
-```{r LPS-deltaT}
+```{r TC -deltaT}
 lapply(bat_LPS, timeVariation_fun3, 3)
 ```
 
-```{r POLY-deltaT}
-lapply(bat_POLY, timeVariation_fun3, 3)
-```
-
-```{r cGAMP-deltaT}
-lapply(bat_cGAMP, timeVariation_fun3, 3)
-```
 
 ## Comparing by Treatment Group
 
