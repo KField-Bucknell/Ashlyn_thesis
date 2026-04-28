@@ -689,7 +689,6 @@ lapply(batnames, plotly_fun3)
 Dropping bad data and gaps
 
 ```{r}
-#
 # Dropping 1
 Dropping1 <- RTrimmed |> 
   filter(Bat_ID %in% c("68.2"))
@@ -697,7 +696,7 @@ Dropping1 <- RTrimmed |>
 summary(as.factor(Dropping1$Bat_ID))
 
 Drop1 <- Dropping1 |>
-  filter(NumberDate <= "1750024800" | NumberDate >= "1750090800")
+  filter(NumberDate <= "1750024800" | NumberDate >= "1750091400")
 
 summary(as.factor(Drop1$Bat_ID))
 
@@ -711,14 +710,6 @@ summary(as.factor(Dropping2$Bat_ID))
 
 Drop2 <- Dropping2 |>
   filter(NumberDate <= "1750009200" | NumberDate >= "1750090800")
-
-
-# Dropping bad data I actually dropped these earlier will remove from code
-
-# Bad_Drop <- RTrimmed |> 
-#  filter(Bat_ID %in% "64.2") |> 
-#  filter(Temperature > "10") |> 
-#  filter(Temperature < "45")
 
 
 # I also have mutliple loggers from the same bat, so I am going to merge these together so it shows up as one bat instead of two. 
