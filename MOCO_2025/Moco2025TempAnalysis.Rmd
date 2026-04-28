@@ -49,125 +49,99 @@ glimpse(Metadata) # check formatting again
 ```
 
 ```{r}
-G1_Ambient <- read.delim("MOCO2025_G1_Ambient.tsv", # read in ambient temp fo G1
+G1_Ambient <- read.delim("MOCO2025_G1_Ambient.tsv", # read in ambient temp for G1
      na = "NA")
-G2_Ambient <- read.delim("MOCO2025_G2_Ambient.tsv", # read in ambient temp fo G2
+G2_Ambient <- read.delim("MOCO2025_G2_Ambient.tsv", # read in ambient temp for G2
      na = "NA")
-G3_Ambient <- read.delim("MOCO2025_G3_Ambient.tsv", # read in ambient temp fo G3
+G3_Ambient <- read.delim("MOCO2025_G3_Ambient.tsv", # read in ambient temp for G3
+     na = "NA")
+
+Union_Ambient <- read.delim("MOCO2025_Ambient.tsv", # read in ambient temp for project period
      na = "NA")
 ```
 
 
 ```{r}
+
+# Looking at averages between ambient temperatures and it does not look like there is much difference
 G1_Ambient |> 
   summarise(Avg = mean(Value),
             Min = min(Value),
             Max = max(Value))
+
+G2_Ambient |> 
+  summarise(Avg = mean(Value),
+            Min = min(Value),
+            Max = max(Value))
+
+G3_Ambient |> 
+  summarise(Avg = mean(Value),
+            Min = min(Value),
+            Max = max(Value))
+
+Union_Ambient |>
+  summarise(Avg = mean(Value),
+            Min = min(Value),
+            Max = max(Value))
+
 ```
+
+I am going to load in my data and metadata now
+
+```{r}
+Primary_Results <- read.delim("MOCO2025PrimaryTemperature.tsv", # read in metadata for ibuttons
+     na = "NA")
+
+Primary_Met <- read.delim("MOCO2025Primary_Met.tsv", # read in metadata for ibuttons
+     na = "NA")
+
+
+Secondary_Results <- read.delim("MOCO2025SecondaryTemperature.tsv", # read in metadata for ibuttons
+     na = "NA")
+
+Secondary_Met <- read.delim("MOCO2025Secondary_Met.tsv", # read in metadata for ibuttons
+     na = "NA")
+```
+
 
 ### Shifting Data
 
 We had two cohorts of bats for non thermally challenged bats. They followed the exact same timeline but were treated on different days of the week. This was done to limit handling time of bats at one time. Because of this, ambient temperature is different for group 1 D21 bats and group 2 D21 bats. 
 
 ```{r}
-SecondaryBatNames <- unique(Secondary_results$Bat_ID)
-
-Secondary_Met <- no_hot_met %>%
-  filter(Bat_ID %in% SecondaryBatNames) |> 
-  select(! "Logger location") |> 
-  select(! "Notes")
-
-summary(as.factor(Secondary_Met$Treatment))
-# shows 6 TC bats but I thought we had 7.. look into this.
-
-SecondaryResultsMet <- Secondary_results |> 
-left_join(Secondary_Met, by = join_by(Bat_ID))
-
-SecondaryResultsMet %>%
-  group_by(Bat_ID) %>%
-  summarize(Min_DateTime = min(DateTime), Max_DateTime = max(DateTime))
+SecondaryBatNames <- unique(Secondary_Results$Bat_ID)
+PrimaryBatNames <- unique(Primary_Results$Bat_ID)
 ```
-
-```{r}
-SecondaryResultsMet$time_aligned <- SecondaryResultsMet$DateTime
-
-md.pattern(SecondaryResultsMet, rotate.names = TRUE)
-
-SecondaryResultsMet <- SecondaryResultsMet |> 
-  select(! "Serial Number") |> 
-  select(! "Logger Name") |> 
-  select(! "Filename")
-
-SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] - lubridate::days(2)
-
-SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] - lubridate::days(11)
-
-boostresultsmet$shift_time_num <-SecondaryResultsMetboostresultsmet$shift_time_num <- boostresultsmet$time_aligned
-
-boostresultsmet$shift_time_num <- as.numeric(boostresultsmet$shift_time_num)
-
-str(boostresultsmet)
-
-boostresultsmet |> 
-  group_by(Bat_ID) |> 
-  summarize(Min_date = min(DateTime), Min_shift = min(time_aligned),
-            min_daten =min(NumberDate, Min_shiftn = min(shift_time_num)))
-
-boosted <- boostresultsmet %>%
-  select(id = Bat_ID, t = shift_time_num, Temperature, )
-head(boosted)
-
-boosted %>%
-  group_by(id) %>%
-  summarize(Min_DateTime = min(t), Max_DateTime = max(t))
-
-```
-
-I shifted the data so now data all shows d21 on June 5th, the same day as D21 for Group 1. 
 
 
 ##Cold bats initial
 
 ```{r}
- Primary_Temp <- clean_results |> 
-   filter(Bat_ID %in% c("64.1", "68.1", "74.1"))  |> 
-  mutate(t = NumberDate) |>  
-mutate(id = Bat_ID)  
-  
+ Primary_Met <- Primary_Met |> 
+  mutate(id = Bat_ID)
 
-Primary_Results <- Primary_Temp |> 
-  filter(DateTime <= as.POSIXct("2025-06-01 00:00:00", tz = "UTC"))
-   
- 
- PrimaryBatNames <- unique(Primary_Results$id)
- 
- Cold_met <- clean_met |> 
-   filter(Bat_ID %in% PrimaryBatNames) |> 
-   mutate(id = Bat_ID)
-  
- Cold_data <- Cold_met %>%
-   select(Bat_ID) %>%
-   left_join(Primary_Results, by = join_by(Bat_ID))
- str(Cold_data)
+Primary_Results <- Primary_Results |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate)
 
- cold_met2 <- data.table::data.table(Cold_met, key = "id")
- cold_data2 <- data.table::data.table(Cold_data, key = "id")
+ Primary_met2 <- data.table::data.table(Primary_Met, key = "id")
+ Primary_results2 <- data.table::data.table(Primary_Results, key = "id")
 
- cold_behavr <- behavr(cold_data2, cold_met2)
- summary(cold_behavr)
+ primary_behavr <- behavr(Primary_results2, Primary_met2)
+ summary(primary_behavr)
 ```
 
 ### Cold Bat Behavr 
-
+Talk with ken about this chunk..
 ```{r}
 
- ticks_7am <- seq(
-   from = floor_date(as.POSIXct(min(cold_behavr$t), origin = "1970-01-01", tz = "UTC"), "day") + hours(7),
-   to   = ceiling_date(as.POSIXct(max(cold_behavr$t), origin = "1970-01-01", tz = "UTC"), "day") + hours(7),
-   by   = "1 day"
- )
+# ticks_7am <- seq(
+#   from = floor_date(as.POSIXct(min(primary_behavr$t), origin = "1970-01-01", tz = "UTC"), "day") + hours(7),
+#   to   = ceiling_date(as.POSIXct(max(primary_behavr$t), origin = "1970-01-01", tz = "UTC"), "day") + hours(7),
+#   by   = "1 day"
+# )
  
- MOCO_Cold <- cold_behavr |>
+ MOCO_Primary <- primary_behavr |>
    ggetho(aes(x = t, y = Temperature, colour = Bat_ID)) +
    stat_pop_etho() +
    # Use phase instead of offset to shift the LD bar
@@ -183,7 +157,7 @@ Primary_Results <- Primary_Temp |>
    # or define time settings inside ggetho()
    scale_x_continuous(
      name = "Date/time",
-     breaks = as.numeric(ticks_7am),
+     #breaks = as.numeric(ticks_7am),
      labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M")
    )
  MOCO_Cold <- cold_behavr |>
@@ -201,7 +175,7 @@ Primary_Results <- Primary_Temp |>
      labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M")
    )
  
-print(MOCO_Cold)
+print(MOCO_Primary)
  
 cold_behavr |>
    ggetho(aes(x = t, y = Temperature, colour = Bat_ID)) +
@@ -245,32 +219,26 @@ cold_behavr |>
 
 ```{r}
 
-BoostBatNames <- unique(boosted$id)
+ Secondary_Met <- Secondary_Met |> 
+  mutate(id = Bat_ID)
 
-Boost_met <- clean_met %>%
-  rename(id = Bat_ID) %>%
-  filter(id %in% BoostBatNames)
+Secondary_Results <- Secondary_Results |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate)
 
+ Secondary_met2 <- data.table::data.table(Secondary_Met, key = "id")
+ Secondary_results2 <- data.table::data.table(Secondary_Results, key = "id")
 
-Boost_data <- Boost_met %>%
-  select(id) %>%
-  left_join(boosted, by = join_by(id))
-str(Boost_data)
-
-boost_met2 <- data.table::data.table(Boost_met, key = "id")
-boost_data2 <- data.table::data.table(Boost_data, key = "id")
-
-boost_behavr <- behavr(boost_data2, boost_met2)
-summary(boost_behavr)
-
+ secondary_behavr <- behavr(Secondary_results2, Secondary_met2)
+ summary(secondary_behavr)
 ```
 
 ```{r}
-ggetho(boost_behavr, aes(x=t, y=id, z=Temperature)) + stat_tile_etho()
+ggetho(secondary_behavr, aes(x=t, y=id, z=Temperature)) + stat_tile_etho()
 ```
 
 ```{r}
-ggetho(boost_behavr, aes(z = Temperature, y = Treatment)) + stat_tile_etho()
+ggetho(secondary_behavr, aes(z = Temperature, y = Treatment)) + stat_tile_etho()
 ```
 
 ```{r, warning=FALSE}

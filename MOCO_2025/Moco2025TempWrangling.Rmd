@@ -971,14 +971,15 @@ SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] <- SecondaryR
 SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] - lubridate::days(11)
 
 Final_Secondary <- SecondaryResultsMet |> 
-  select(Bat_ID, time_aligned, Temperature, deltaT)
-
+  filter(Treatment %in% c("SHAM", "eVLP+LPS", "TC")) |> 
+  select(Bat_ID, time_aligned, Temperature, AmbientT, deltaT)
+  
 Final_Secondary <- Final_Secondary |> 
   rename(DateTime = "time_aligned") |> 
   mutate(NumberDate = as.numeric(DateTime))
 
 Final_Primary <- Primary_results |> 
-  select(Bat_ID, DateTime, NumberDate, Temperature, deltaT)
+  select(Bat_ID, DateTime, NumberDate, Temperature, AmbientT, deltaT)
 
 Primary_Met <- clean_met |> 
   filter(Bat_ID %in% c("64.1", "68.1", "74.1"))
@@ -999,6 +1000,8 @@ Group_3_Ambient <- Union_Ambient |>
   filter(NumberDate > "1748217600", 
          NumberDate < "1750290600")
 
+Secondary_Met2 <- Secondary_Met |> 
+  filter(Treatment %in% c("SHAM", "eVLP+LPS", "TC")) 
 ```
 
 ```{r}
@@ -1010,7 +1013,7 @@ plotly_fun6 <- function(arg1) {
     layout(xaxis = list(title = arg1))
 }
 
-lapply(KeptBatNames, plotly_fun6)
+lapply(SecondaryBatNames, plotly_fun6)
 
 ```
  
@@ -1020,7 +1023,7 @@ I think I have all the data wrangling down so I am going to export some tsv with
 
 
 ```{r}
-write_tsv(Secondary_Met, file = "MOCO2025Secondary_Met.tsv")
+write_tsv(Secondary_Met2, file = "MOCO2025Secondary_Met.tsv")
 write_tsv(Final_Primary, file = "MOCO2025PrimaryTemperature.tsv")
 write_tsv(Final_Secondary, file = "MOCO2025SecondaryTemperature.tsv")
 write_tsv(Primary_Met, file = "MOCO2025Primary_Met.tsv")
