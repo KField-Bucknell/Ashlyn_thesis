@@ -885,6 +885,7 @@ Okay, now that's done.. I need to take these times and add them to the correspon
 Primary_results_working <- clean_results |> 
   filter(Bat_ID %in% c("64.1", "68.1", "74.1")) |> # results from primary immunization
   filter(NumberDate <= "1748736000")
+
 Secondary_results_working <- clean_results |> 
   filter(!Bat_ID %in% c("64.1", "68.1", "74.1")) # results from secondary immunization
 
