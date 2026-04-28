@@ -883,7 +883,8 @@ Rivendell_Pre_Trim <- Rivendell_Pre |>
 Okay, now that's done.. I need to take these times and add them to the corresponding rows. I think what I am going to do is separate the boost from the primary results, because my primary result bats were all in an incubator at that time. 
 ```{r}
 Primary_results_working <- clean_results |> 
-  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) # results from primary immunization
+  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) |> # results from primary immunization
+  filter(NumberDate <= "1748736000")
 Secondary_results_working <- clean_results |> 
   filter(!Bat_ID %in% c("64.1", "68.1", "74.1")) # results from secondary immunization
 
