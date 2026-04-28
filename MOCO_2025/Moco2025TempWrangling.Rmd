@@ -792,6 +792,9 @@ We had two cohorts of bats for non thermally challenged bats. They followed the 
   rename(DateTime = "Date/Time")  |> # read in ambient temp
   mutate (DateTime = as.POSIXct(DateTime)) |> # correct format
   mutate(NumberDate = as.numeric(DateTime)) #add column changing date/time to numeric
+  
+Union_Ambient <- Union_Ambient |> 
+filter(NumberDate >= "1747407000")
 
 plot_ly(Union_Ambient,x = ~DateTime, y = ~Value,
           type = 'scatter', mode = 'lines')
@@ -989,7 +992,7 @@ Group_1_Ambient <- Union_Ambient |>
          NumberDate < "1750290600")
 
 Group_2_Ambient <- Union_Ambient |> 
-  filter(NumberDate > "1747406400", 
+  filter(NumberDate > "1747440000", 
          NumberDate < "1750447800")
 
 Group_3_Ambient <- Union_Ambient |> 
@@ -1026,7 +1029,7 @@ write_tsv(Secondary_Ambient, file = "MOCO2025Secondary_Ambient.tsv")
 write_tsv(Group_1_Ambient, file = "MOCO2025_G1_Ambient.tsv")
 write_tsv(Group_2_Ambient, file = "MOCO2025_G2_Ambient.tsv")
 write_tsv(Group_3_Ambient, file = "MOCO2025_G3_Ambient.tsv")
-
+write_tsv(Union_Ambient, file = "MOCO2025_Ambient.tsv")
 
 ```
 
