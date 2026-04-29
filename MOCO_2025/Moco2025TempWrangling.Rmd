@@ -962,20 +962,44 @@ SecondaryResultsMet <- SecondaryResultsMet |>
 SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] - lubridate::days(2)
 
 SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] - lubridate::days(11)
+```
 
-Final_Secondary <- SecondaryResultsMet |> 
+Okay, one of the last things I want to do is remove the decimal from the Bat ID. This was just to differentiate between loggers for one bat with all the different metadata. 
+```{r}
+Working_Secondary <- SecondaryResultsMet |> 
   filter(Treatment %in% c("SHAM", "eVLP+LPS", "TC")) |> 
   select(Bat_ID, time_aligned, Temperature, AmbientT, deltaT)
   
-Final_Secondary <- Final_Secondary |> 
+Working_Secondary <- Working_Secondary |> 
   rename(DateTime = "time_aligned") |> 
-  mutate(NumberDate = as.numeric(DateTime))
+  mutate(NumberDate = as.numeric(DateTime)) 
 
+Working_Secondary$Bat_IDs <-  gsub("\\..*", "", Working_Secondary$Bat_ID)
+
+Final_Secondary <- Working_Secondary |> 
+  select(Bat_IDs, DateTime, Temperature, AmbientT, deltaT) |> 
+  rename(Bat_ID = "Bat_IDs")
+
+Primary_results$Bat_IDs <- gsub("\\..*", "", Primary_results$Bat_ID)
+  
 Final_Primary <- Primary_results |> 
-  select(Bat_ID, DateTime, NumberDate, Temperature, AmbientT, deltaT)
+  select(Bat_IDs, DateTime, NumberDate, Temperature, AmbientT, deltaT) |> 
+  rename(Bat_ID = "Bat_IDs")
 
 Primary_Met <- clean_met |> 
-  filter(Bat_ID %in% c("64.1", "68.1", "74.1"))
+  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) 
+
+Primary_Met$Bat_IDs <- gsub("\\..*", "", Primary_Met$Bat_ID)
+
+Primary_Met <- Primary_Met |> 
+  select(!Bat_ID) |> 
+  rename(Bat_ID = "Bat_IDs")
+
+Secondary_Met$Bat_IDs <- gsub("\\..*", "", Secondary_Met$Bat_ID)
+
+Secondary_Met <- Secondary_Met |> 
+  select(!Bat_ID) |> 
+  rename(Bat_ID = "Bat_IDs")
 
 Secondary_Ambient <- Union_Ambient |> 
   filter(NumberDate > "1748967000" , 

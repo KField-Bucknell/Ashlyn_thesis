@@ -86,31 +86,30 @@ Union_Ambient |>
 
 ```
 
-I am going to load in my data and metadata now
+I am going to load in my data and metadata for both immunizations
 
 ```{r}
-Primary_Results <- read.delim("MOCO2025PrimaryTemperature.tsv", # read in metadata for ibuttons
+Primary_Results <- read.delim("MOCO2025PrimaryTemperature.tsv", # read in primary results
      na = "NA")
 
-Primary_Met <- read.delim("MOCO2025Primary_Met.tsv", # read in metadata for ibuttons
+Primary_Met <- read.delim("MOCO2025Primary_Met.tsv", # read in primary metadata
      na = "NA")
 
-
-Secondary_Results <- read.delim("MOCO2025SecondaryTemperature.tsv", # read in metadata for ibuttons
+Secondary_Results <- read.delim("MOCO2025SecondaryTemperature.tsv", # read in secondary results 
      na = "NA")
 
-Secondary_Met <- read.delim("MOCO2025Secondary_Met.tsv", # read in metadata for ibuttons
+Secondary_Met <- read.delim("MOCO2025Secondary_Met.tsv", # read in secondary metadata
      na = "NA")
 ```
 
-
+Make values for bat names
 ```{r}
 SecondaryBatNames <- unique(Secondary_Results$Bat_ID)
 PrimaryBatNames <- unique(Primary_Results$Bat_ID)
 ```
 
 
-##Cold bats initial
+##Primary Temp
 
 ```{r}
  Primary_Met <- Primary_Met |> 
@@ -132,8 +131,8 @@ Primary_Results <- Primary_Results |>
 
 ```
 
-### Cold Bat Behavr 
-Talk with ken about this chunk..
+### Primary Behavr 
+
 ```{r}
   
   primary_behavr |>
@@ -178,7 +177,17 @@ Secondary_Results <- Secondary_Results |>
 ```
 
 ```{r}
-ggetho(secondary_behavr, aes(x=t, y=id, z=Temperature)) + stat_tile_etho()
+secondary_etho  <- ggetho(secondary_behavr, aes(x=t, y=id, z=Temperature)) + stat_tile_etho() +
+  scale_x_continuous(
+    name = "Date/time",
+    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
+    expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  labs(fill = "Temp (C)",
+       y = "Bat ID")
+
+ggsave("MOCO_Sec_Etho.jpeg", plot = secondary_etho, device = jpeg(), width = 12, height = 6.67)
 ```
 
 ```{r}
@@ -222,6 +231,28 @@ ggetho(secondary_behavr, aes(y= Temperature, colour=Treatment), time_wrap = 8640
       stat_pop_etho() +
       stat_ld_annotations() +
       facet_grid(Treatment ~ .) +
+      scale_y_continuous(name= "Temperature")
+ggetho(secondary_behavr, aes(y= Temperature, colour=Treatment), time_wrap = 86400) +
+      stat_pop_etho() +
+      stat_ld_annotations() +
+      scale_y_continuous(name= "Temperature")
+
+Secondary_Trimmed <- Secondary_results2 |> 
+  filter(NumberDate <= "1749254400") |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
+
+
+ Secondary_results3 <- data.table::data.table(Secondary_Trimmed, key = "id")
+
+ secondary_behavr2 <- behavr(Secondary_results3, Secondary_met2)
+ summary(secondary_behavr)
+
+ 
+ ggetho(secondary_behavr, aes(y= Temperature, colour=Treatment), time_wrap = 86400) +
+      stat_pop_etho() +
+      stat_ld_annotations() +
       scale_y_continuous(name= "Temperature")
 ```
 
