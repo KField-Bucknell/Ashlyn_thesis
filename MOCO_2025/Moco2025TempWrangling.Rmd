@@ -977,7 +977,7 @@ Working_Secondary <- Working_Secondary |>
 Working_Secondary$Bat_IDs <-  gsub("\\..*", "", Working_Secondary$Bat_ID)
 
 Final_Secondary <- Working_Secondary |> 
-  select(Bat_IDs, DateTime, Temperature, AmbientT, deltaT) |> 
+  select(Bat_IDs, DateTime, Temperature, AmbientT, deltaT, NumberDate) |> 
   rename(Bat_ID = "Bat_IDs")
 
 Primary_results$Bat_IDs <- gsub("\\..*", "", Primary_results$Bat_ID)
