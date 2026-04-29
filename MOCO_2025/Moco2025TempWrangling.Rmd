@@ -711,6 +711,16 @@ summary(as.factor(Dropping2$Bat_ID))
 Drop2 <- Dropping2 |>
   filter(NumberDate <= "1750009200" | NumberDate >= "1750090800")
 
+#Dropping 3
+
+Dropping3 <- RTrimmed |> 
+  filter(Bat_ID %in% c("22"))
+
+summary(as.factor(Dropping3$Bat_ID))
+
+Drop3 <- Dropping3 |>
+  filter(NumberDate <= "1749084600" | NumberDate >= "1749099600")
+
 
 # I also have mutliple loggers from the same bat, so I am going to merge these together so it shows up as one bat instead of two. 
 
@@ -728,9 +738,9 @@ Bat_78.9 <- bind_rows(Bat_78.2, Bat_78.3) |>
 
 
 allbatresults3.temp <- RTrimmed |> 
-  filter(!Bat_ID %in% c("68.2", "83.2", "78.2", "78.3"))
+  filter(!Bat_ID %in% c("68.2", "83.2", "78.2", "78.3", "22"))
 
-clean_results <- bind_rows(allbatresults3.temp, Drop2, Drop1, Bat_78.9)
+clean_results <- bind_rows(allbatresults3.temp, Drop2, Drop1, Drop3, Bat_78.9)
 
 
 summary(as.factor(clean_results$Bat_ID))
@@ -967,39 +977,89 @@ SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] <- SecondaryR
 Okay, one of the last things I want to do is remove the decimal from the Bat ID. This was just to differentiate between loggers for one bat with all the different metadata. 
 ```{r}
 Working_Secondary <- SecondaryResultsMet |> 
-  filter(Treatment %in% c("SHAM", "eVLP+LPS", "TC")) |> 
+  filter(Treatment %in% c("SHAM", "eVLP+LPS", "TC"))
+
+Bat_64 <- Working_Secondary |> 
+  filter(Bat_ID == "64.2")
+Bat_64$Bat_ID <- c("64")
+
+Bat_68 <- Working_Secondary |> 
+  filter(Bat_ID == "68.2")
+Bat_68$Bat_ID <- c("68")
+
+Bat_73 <- Working_Secondary |> 
+  filter(Bat_ID == "73.4")
+Bat_73$Bat_ID <- c("73")
+
+Bat_74 <- Working_Secondary |> 
+  filter(Bat_ID == "74.2")
+Bat_74$Bat_ID <- c("74")
+
+Bat_76 <- Working_Secondary |> 
+  filter(Bat_ID == "76.2")
+Bat_76$Bat_ID <- c("76")
+
+Bat_78 <- Working_Secondary |> 
+  filter(Bat_ID == "78.9")
+Bat_78$Bat_ID <- c("78")
+
+Bat_83 <- Working_Secondary |> 
+  filter(Bat_ID == "83.2")
+Bat_83$Bat_ID <- c("83")
+
+Working_Secondary2 <- Working_Secondary |> 
+  filter(!Bat_ID %in% c("64.2", "68.2", "73.4", "74.2", "76.2", "78.9", "83.2"))
+
+Working_Secondary3 <- Working_Secondary2 |> 
+  bind_rows(Bat_64, Bat_68, Bat_73, Bat_74, Bat_76, Bat_78, Bat_83)
+
+Final_working_sec <- Working_Secondary3 |> 
   select(Bat_ID, time_aligned, Temperature, AmbientT, deltaT)
-  
-Working_Secondary <- Working_Secondary |> 
+
+Final_Secondary <- Final_working_sec |> 
   rename(DateTime = "time_aligned") |> 
   mutate(NumberDate = as.numeric(DateTime)) 
 
-Working_Secondary$Bat_IDs <-  gsub("\\..*", "", Working_Secondary$Bat_ID)
+SecondaryNames <- unique(Final_Secondary$Bat_ID)
 
-Final_Secondary <- Working_Secondary |> 
-  select(Bat_IDs, DateTime, Temperature, AmbientT, deltaT, NumberDate) |> 
-  rename(Bat_ID = "Bat_IDs")
+Working_met_sec <- Working_Secondary3 |> 
+  select(Bat_ID, `Bat Pittag`, Group, Treatment, `Innoculation Date`, `Boost Date`)
 
-Primary_results$Bat_IDs <- gsub("\\..*", "", Primary_results$Bat_ID)
-  
-Final_Primary <- Primary_results |> 
-  select(Bat_IDs, DateTime, NumberDate, Temperature, AmbientT, deltaT) |> 
-  rename(Bat_ID = "Bat_IDs")
+Secondary_Met2 <- Working_met_sec |> 
+  unique()
+
+SecondaryNames <- unique(Final_Secondary$Bat_ID)
+
+temp_primary_met <- Primary_results |> 
+  left_join(clean_met, join_by(Bat_ID))
+
+Bat_64.1 <- temp_primary_met |> 
+  filter(Bat_ID == "64.1")
+Bat_64.1$Bat_ID <- c("64")
+
+Bat_68.1 <- temp_primary_met |> 
+  filter(Bat_ID == "68.1")
+Bat_68.1$Bat_ID <- c("68")
+
+Bat_74.1 <- temp_primary_met |> 
+  filter(Bat_ID == "74.1")
+Bat_74.1$Bat_ID <- c("74")
+
+Primary_working <- bind_rows(Bat_64.1, Bat_68.1, Bat_74.1)
+
+Final_Primary <- Primary_working |> 
+  select(Bat_ID, DateTime, NumberDate, Temperature, AmbientT, deltaT)
+
+PrimaryNames <- unique(Final_Primary$Bat_ID)
+
+Primary_met_working <- Primary_working |> 
+  select(Bat_ID, `Bat Pittag`, Group, Treatment, `Innoculation Date`, `Boost Date`)
+
+Primary_Met <- Primary_met_working|> 
+  unique()
 
 Primary_Met <- clean_met |> 
   filter(Bat_ID %in% c("64.1", "68.1", "74.1")) 
-
-Primary_Met$Bat_IDs <- gsub("\\..*", "", Primary_Met$Bat_ID)
-
-Primary_Met <- Primary_Met |> 
-  select(!Bat_ID) |> 
-  rename(Bat_ID = "Bat_IDs")
-
-Secondary_Met$Bat_IDs <- gsub("\\..*", "", Secondary_Met$Bat_ID)
-
-Secondary_Met <- Secondary_Met |> 
-  select(!Bat_ID) |> 
-  rename(Bat_ID = "Bat_IDs")
 
 Secondary_Ambient <- Union_Ambient |> 
   filter(NumberDate > "1748967000" , 
@@ -1016,9 +1076,6 @@ Group_2_Ambient <- Union_Ambient |>
 Group_3_Ambient <- Union_Ambient |> 
   filter(NumberDate > "1748217600", 
          NumberDate < "1750290600")
-
-Secondary_Met2 <- Secondary_Met |> 
-  filter(Treatment %in% c("SHAM", "eVLP+LPS", "TC")) 
 ```
 
 ```{r}
@@ -1030,7 +1087,7 @@ plotly_fun6 <- function(arg1) {
     layout(xaxis = list(title = arg1))
 }
 
-lapply(SecondaryBatNames, plotly_fun6)
+lapply(SecondaryNames, plotly_fun6)
 
 ```
  
