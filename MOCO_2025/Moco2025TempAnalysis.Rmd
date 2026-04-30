@@ -134,25 +134,54 @@ Primary_Results <- Primary_Results |>
 ### Primary Behavr 
 
 ```{r}
-  
+ 
+shaded <- data.frame(xmin = c(1748001900 , 1748277000), #adds shaded regions for both the basal and primary thermal challenges
+                     xmax = c(1748049000, 1748306400),
+                     label = c("Basal TC", "Primary TC"))
+                              
   primary_behavr |>
   ggetho(aes(x = t, y = Temperature, colour = id))+
-  stat_pop_etho() +
+  geom_rect(data = shaded, 
+            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+             alpha = 0.3, inherit.aes = FALSE) +
+    stat_pop_etho() +
   stat_ld_annotations(
     period = 86400,
     phase = 25200,
     l_duration = 43200, 
     ld_colours = c( "white", "black")) +
-   # ratio = c(12, 12)* 3600) +
   facet_grid(id ~ .) +
-    scale_x_continuous(
+  scale_x_continuous(
     name = "Date/time",
     breaks = seq(1747767600, max(primary_behavr$t), by = 86400), 
     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
     expand = c(0,0)) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) -> MOCO_Primary
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+    labs(y = "Temp (C)")-> MOCO_Primary
  
+  #i removed the facet but I hate it lol
+ primary_behavr |>
+  ggetho(aes(x = t, y = Temperature, colour = id))+
+  geom_rect(data = shaded, 
+            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+             alpha = 0.3, inherit.aes = FALSE) +
+    stat_pop_etho() +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,
+    l_duration = 43200, 
+    ld_colours = c( "white", "black")) +
+  scale_x_continuous(
+    name = "Date/time",
+    breaks = seq(1747767600, max(primary_behavr$t), by = 86400), 
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
+    expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) -> MOCO_Primary_nofacet
+  
 ggsave("MOCO_Primary.jpeg", plot = MOCO_Primary, device = jpeg(), width = 12, height = 6.67)
+
+ggsave("MOCO_Primary_nofacet.jpeg", plot = MOCO_Primary_nofacet, device = jpeg(), width = 12, height = 6.67)
+
 ```
 It is plotting and looks fine, but I am getting some errors. Need Ken to look at it. I also want to add shaded regions that show when they are being handled. But I actually might not do this because these bats are handled every single night for feeding.. ugh stupid MOCO
 
