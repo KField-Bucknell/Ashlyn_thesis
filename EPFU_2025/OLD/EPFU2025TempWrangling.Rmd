@@ -42,12 +42,11 @@ Then I will plot the pre- and post- boost data for each individual.
 ```{r}
 Metadata <- read_excel("EPFU 2025 BUTT Assignments.xlsx", sheet = "Loggers",  # read in metadata for ibuttons
     range = "A1:M58", na = "NA")
+glimpse(Metadata)# check formatting
 
-glimpse(Metadata) # check formatting
+Metadata$Bat_ID = as.character(Metadata$`Bat Pittag`)# change Bat Pittag to a character
 
-Metadata$Bat_ID = as.character(Metadata$`Bat Pittag`) # change Bat_ID to a character
-
-glimpse(Metadata) # check formatting again
+glimpse(Metadata)# check formatting again
 ```
 
 
@@ -79,9 +78,6 @@ allbatresults <- bind_rows(batfiles, .id = "Bat_ID") # creates a long dataset wi
 
 allbatresults <- allbatresults %>%
   mutate(DateTime = mdy_hms(DateTime)) # changes date to appropriate format
-
-allbatresults <- allbatresults |> 
-  mutate(NumberDate = as.numeric(DateTime))
 str(allbatresults) # similar to glimpse
 summary(as.factor(allbatresults$Bat_ID)) # display all bat names and their counts use to verify they ran correctly
 md.pattern(allbatresults) # checking for NA's
@@ -91,7 +87,6 @@ Metadata %>%
 Metadata %>%
   filter(is.na(`Filename`)) # shows which bats do not have a logger
 ```
-
 This looks good, I have 44 files and all the metadata with NAs for file name are either ibuttons that are are missing, unused, or lost data. 
 
 Loggers have 2-8000 datapoints. All the ones used for boost have around 4,000 datapoints which makes sense.
@@ -100,13 +95,13 @@ Loggers have 2-8000 datapoints. All the ones used for boost have around 4,000 da
 
 ```{r}
 clean_met <- Metadata %>%
-  drop_na(Filename) |> # removes any ibuttons with no file
-  filter(`Experiment D Died` == "D36")
+  drop_na(Filename) # removes any ibuttons with no file
 
 head(clean_met) # look at the top of the dataset
 md.pattern(clean_met, rotate.names = TRUE)
 write_tsv(clean_met, file = "EPFU2025TempLoggerMetadata.tsv")
 ```
+
 
 ## Making a plot function
 
@@ -137,7 +132,7 @@ ggplotly(plot_fun("APS36067"))
 ```
 
 ```{r Plotly Bat 16}
-plotly_fun("APS60113")
+plotly_fun("APS36067")
 ```
 
 Here we go!
@@ -148,21 +143,19 @@ This works fine, but is not interactive
 lapply(batnames, plotly_fun)
 ```
 
+
 The data loads in well. There are a lot of values that are incorrect (logger never exposed to these temps). Will drop them later.
 Will get in to the details about which ones need to be trimmed in a bit. 
 
 ## Calibration
 Before I go any further, I need to calibrate the data. I am using a 2 point calibration from the low and high calibration temps. The formula I am using is CorrectedValue = (((RawValue – RawLow) * ReferenceRange) / RawRange) + ReferenceLow. Before I do that, I need to remove the incorrect values that are over 45 and under 0. Since I know these are incorrect readings and I would want them removed from ALL loggers, I am just going to apply it to the whole dataset.
 
-Unfortunately, my calibration data for the second batch of loggers is really weird and does not make sense. Loggers were reading at 45C while in the hot calibration and 2C while in the cold calibration. The low temperature makes sense because the water bath was in the fridge but the reference thermometer was reading at 11C. The hot temperature does not make sense as the bath should not have been that hot and the reference thermometer read at 35C.
-
-Thankfully, I have some loggers that went in for both calibrations, so I will calibrate all the loggers from the first calibration and then take their temperatures during the second calibration to calibrate the second batch of loggers.
-
+Unfortunately, my calibration data for the second batch of loggers is really weird and does not make sense. Loggers were reading at 45C while in the hot calibration and 2C while in the cold calibration. The low temperature makes sense because the water bath was in the fridge but the reference thermometer was reading at 11C. The hot temperature does not make sense as the bath should not have been that hot and the reference thermometer read at 35C. I am going to overall this data and see what is going on here. Maybe they are reading within similar ranges and I can keep it without calibrating. The most important thing is that they have similar sensitivity so they are acturately recording fluctuations in the body temperature. 
 ```{r}
-# here i am just checking the boost data all in one plot to see what it looks like
+
 checking_boost_cal <- allbatresults |> 
-  left_join(Metadata, join_by(Bat_ID)) |> # joining with metadata
-  filter(`Date Attached` >= '2025-09-29') # filter by loggers attached for second immunization
+  left_join(Metadata, join_by(Bat_ID)) |> 
+  filter(`Date Attached` >= '2025-09-29')
 
 p <- checking_boost_cal%>%
   dplyr::filter(Bat_ID %in% batnames) %>%
@@ -174,159 +167,153 @@ p <- checking_boost_cal%>%
 
 # Convert to interactive
 ggplotly(p)
-
 ```
 
 ```{r}
 clean_results <- allbatresults |> 
   filter(Temperature > 0 & # removes temperature data under 0 degrees
-        Temperature < 50) # removes temperature over 50 degrees
+        Temperature < 50) # removes temperature over 45 degrees
 
 summary(as.factor(allbatresults$Bat_ID)) # display all bat names and their counts use to verify they ran correctly
 summary(as.factor(clean_results$Bat_ID)) # comparing counts between the two
 ```
-This looks good. Now I am going to add columns to the dataframe with the maximum and minimum values during calibration. There were two different calibrations, so first I have to select loggers only used in the first calibration. 
-
-### Calibration 1
+This looks good. Now I am going to add columns to the dataframe with the maximum and minimum values during calibration. There were two different calibrations, so first I have to select loggers only used in the second calibration. 
 
 ```{r}
 Clean_results_met <- clean_results %>% 
   left_join(clean_met, by = "Bat_ID") # join metadata with results so I can extract loggers in second calibration
 
-Cal_1_results <- Clean_results_met |>  # extracting second calibration results
-  filter(Calibration == 1) |> 
-  select(Bat_ID, DateTime, Unit, Temperature, NumberDate)
-
-Cal_1_results <- Cal_1_results |> 
-  group_by(Bat_ID) |> 
-  mutate(lowT = mean(Temperature[NumberDate >= 1756687201 & 
-                  DateTime <= 1756692601 ])) |> 
-  ungroup() #taking the average temperature during the low calibration for each logger
-
-Cal_1_results <- Cal_1_results |> 
-  group_by(Bat_ID) |> 
-  mutate(highT = mean(Temperature[NumberDate >= 1756738201 & 
-                                    NumberDate <= 1756801801])) |> 
-  ungroup() #taking the average temperature during the high calibration for each logger
-
-Cal_1_results <- Cal_1_results |> 
-  group_by(Bat_ID) |>                # Group by individual bat
-  mutate(RangeT = highT-lowT) |> # Calculate range from average high temp and average low temp
-  ungroup()  
+#Cal_2_results <- Clean_results_met |>  # extracting second calibration results
+#  filter(Calibration == 2) |> 
+#  select(Bat_ID, DateTime, Unit, Temperature)
+#
+#Cal_2_results <- Cal_2_results |> 
+#  group_by(Bat_ID) |> 
+#  mutate(lowT = mean(Temperature[DateTime >= ymd_hms("2025-06-02 10:30:00") & 
+#                  DateTime <= ymd_hms("2025-06-02 14:20:00")],  na.rm = TRUE)) |> 
+#  ungroup() #taking the average temperature during the low calibration for each logger
+#
+#Cal_2_results <- Cal_2_results |> 
+#  group_by(Bat_ID) |> 
+#  mutate(highT = mean(Temperature[DateTime >= ymd_hms("2025-06-03 01:10:00") & 
+#                  DateTime <= ymd_hms("2025-06-3 11:10:00")],  na.rm = TRUE)) |> 
+#  ungroup() #taking the average temperature during the high calibration for each logger
+#
+#Cal_2_results <- Cal_2_results |> 
+#  group_by(Bat_ID) |>                # Group by individual bat
+#  mutate(RangeT = highT-lowT) |> # Calculate range from average high temp and average low temp
+#  ungroup()  
 ```
 
 Okay, now because Ken would want me to, I am going to load in the calibration data and get the range and average low. 
 
 ```{r}
-Reference_cal_1 <- read_excel("Calibration Data/31-Aug_Calibration.xlsx", 
-    range = "A1:D8869", na = "NA") #loading in the calibration 2 reference data
-
-summary(Reference_cal_1) # looking at it to make sure it loaded in correctly
-
-Reference_cal_1 <- Reference_cal_1 |> 
-  mutate(lowT = mean(T1[No.s >= 1076 & 
-                  No.s <= 1433],  na.rm = TRUE)) #taking the average temperature during the low calibration for reference data. I needed to use the time point because the EA15 does not record date so it loaded in as 1899-12-31 for all times. The time points lines up with the same time used in averaging low and high logger temperatures.
-
-Reference_cal_1 <- Reference_cal_1 |> 
-  mutate(highT = mean(T1[No.s >= 4473 & 
-                  No.s <= 8713],  na.rm = TRUE)) #taking the average temperature during the low calibration for reference data. 
+#Reference_cal_2 <- read_excel("MOCO_Calibration_Group1_2.xlsx", 
+#    range = "A1:D6362", na = "NA") #loading in the calibration 2 reference data
+#
+#summary(Reference_cal_2) # looking at it to make sure it loaded in correctly
+#
+#Reference_cal_2 <- Reference_cal_2 |> 
+#  mutate(lowT = mean(T1[No.s >= 403 & 
+#                  No.s <= 1323],  na.rm = TRUE)) #taking the average temperature during the low calibration for reference data. I needed to use #the time point because the EA15 does not record date so it loaded in as 1899-12-31 for all times. The time points lines up with the same time #used in averaging low and high logger temperatures.
+#
+#Reference_cal_2 <- Reference_cal_2 |> 
+#  mutate(highT = mean(T1[No.s >= 3923 & 
+#                  No.s <= 6323],  na.rm = TRUE)) #taking the average temperature during the low calibration for reference data. 
 ```
 
-The average low is 4.554749, the average high is 36.97654, and the range is 32.42. 
-Okay, now I am going to create a column in my cal_1_results that has the formula for the corrected values. 
+The average low is 4.803, the average high is 41.16, and the range is 36.357. 
+Okay, now I am going to create a column in my cal_2_results that has the formula for the corrected values. 
 
 ```{r}
-Cal_1_results <- Cal_1_results |> 
-  mutate(corrected = ((( Temperature - lowT ) * 32.42)/ RangeT) + 4.55) # applying formula listed above to the calibration to get a corrected temperature value
-
-summary(Cal_1_results)
+#Cal_2_results <- Cal_2_results |> 
+#  mutate(corrected = ((( Temperature - lowT ) * 36.357)/ RangeT) + 4.803) # applying formula listed above to the calibration to get a corrected #temperature value
+#
+#summary(Cal_2_results)
 ```
 I think this data looks good. I took a look at the dataset and saw that the range is different, the low and high looks like they were calculated correctly. 
 
+Now I am going to do the same thing but for the other calibration day
 
-### Calibration 2
-Okay, so for this one, I am going to take the three loggers that went through both calibrations. Using the first calibration, the data from the second calibration should be true values. I am going to take these temperatures during the second calibration and use them to calibrate the second batch. 
 ```{r}
-Cal_2_results <- Clean_results_met |> # extracting second calibration results
-  filter(Calibration == 2) |> 
-  select(Bat_ID, DateTime, Unit, Temperature, NumberDate)
-
-Cal_2_results <- Cal_2_results |> 
-  group_by(Bat_ID) |> 
-  mutate(lowT = mean(Temperature[NumberDate >= 1759106401 & 
-                  NumberDate <= 1759112401])) |> 
-  ungroup() #taking the average temperature during the low calibration for each logger
-
-Cal_2_results <- Cal_2_results |> 
-  group_by(Bat_ID) |> 
-  mutate(highT = mean(Temperature[NumberDate >= 1759125601 & 
-                  NumberDate <= 1759130401])) |> 
-  ungroup() #taking the average temperature during the high calibration for each logger
-
-Cal_2_results <- Cal_2_results |> 
-  group_by(Bat_ID) |>                # Group by individual bat
-  mutate(RangeT = highT-lowT) |> # Calculate range and add column
-  ungroup()  
+Cal_1_results <- Clean_results_met |> # extracting primary calibration results
+  filter(Calibration == 1) |> 
+  select(Bat_ID, DateTime, Unit, Temperature)
 ```
 
-Okay, now I am going to take Cal_1_results and filter out the three loggers in both calibrations
-
 ```{r}
-Reference_cal_2 <- Cal_1_results |> 
-  filter(Bat_ID %in% c("APS36010_boost", "APS36057_boost", "APS60113_boost") ) |> 
-  filter(NumberDate  > 1759104001, 
-         NumberDate < 1759132801)
+checking_primary_cal <- allbatresults |> 
+  left_join(Metadata, join_by(Bat_ID)) |> 
+  filter(Calibration == '1')
 
-```
-
-I need to make sure they calibrations are all reading about the same.
-```{r}
-
-ref_cal_2 <- Reference_cal_2%>%
+p <- checking_primary_cal%>%
   dplyr::filter(Bat_ID %in% batnames) %>%
-  ggplot(aes(x = DateTime, y = corrected, color = Bat_ID)) +
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
   geom_line() +
   ylim(0, 50) +
   theme_minimal() +
   labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
 
 # Convert to interactive
-ggplotly(ref_cal_2)
-
-```
-Okay, I think this looks good
+ggplotly(p)
+``` 
 
 ```{r}
-summary(Reference_cal_2)
 
-Reference_cal_2 <- Reference_cal_2 |> 
-  mutate(lowT = mean(corrected[NumberDate >= 1759106401 & 
-                  NumberDate <= 1759112401]))  #taking the average temperature during the low calibration for each logger
-
-Reference_cal_2 <- Reference_cal_2 |> 
-  mutate(highT = mean(corrected[NumberDate >= 1759125601 & 
-                  NumberDate <= 1759130401])) 
-
-summary(Reference_cal_2)
+#Cal_1_results <- Cal_1_results |> 
+#  group_by(Bat_ID) |> 
+#  mutate(lowT = mean(Temperature[DateTime >= ymd_hms("2025-05-19 00:40:00") & 
+#                  DateTime <= ymd_hms("2025-05-19 07:50:00")],  na.rm = TRUE)) |> 
+#  ungroup() #taking the average temperature during the low calibration for each logger
+#
+#Cal_1_results <- Cal_1_results |> 
+#  group_by(Bat_ID) |> 
+#  mutate(highT = mean(Temperature[DateTime >= ymd_hms("2025-05-19 14:40:00") & 
+#                  DateTime <= ymd_hms("2025-05-19 16:40:00")],  na.rm = TRUE)) |> 
+#  ungroup() #taking the average temperature during the high calibration for each logger
+#
+#Cal_1_results <- Cal_1_results |> 
+#  group_by(Bat_ID) |>                # Group by individual bat
+#  mutate(RangeT = highT-lowT) |> # Calculate range and add column
+#  ungroup()  
 ```
 
-The average low is 4.733, the average high is 49.46, and the range is 44.73. 
+
+
+```{r}
+#Reference_cal_1 <- read_excel("18_May_2025_Calibration.xlsx", 
+#    range = "A1:D5408", na = "NA") # loading in the calibration 2 reference data
+#
+#summary(Reference_cal_1)
+#
+#Reference_cal_1 <- Reference_cal_1 |> 
+#  mutate(lowT = mean(T1[No.s >= 1498 & 
+#                  No.s <= 3220],  na.rm = TRUE)) #taking the average temperature during the #low calibration for each logger
+#
+#Reference_cal_1 <- Reference_cal_1 |> 
+#  mutate(highT = mean(T1[No.s >= 4858 & 
+#                  No.s <= 5338],  na.rm = TRUE)) #taking the average temperature during the #high calibration for each logger
+#
+#summary(Reference_cal_1)
+```
+
+The average low is 3.672, the average high is 42.26, and the range is 38.588. 
 Okay, now I am going to create a column in my cal_1_results that has the formula for the corrected values. 
 
 ```{r}
-Cal_2_results <- Cal_2_results |> 
-  mutate(corrected = ((( Temperature - lowT ) * 44.73)/ RangeT) + 4.733)
-
-summary(Cal_2_results)
+#Cal_1_results <- Cal_1_results |> 
+#  mutate(corrected = ((( Temperature - lowT ) * 38.588)/ RangeT) + 3.672)
+#
+#summary(Cal_1_results)
 ```
 
 Okay, now that I have my data calibrated, I am going to merge the two datasets.
 
 ```{r}
-cal_data <- bind_rows(Cal_1_results, Cal_2_results) |> 
-  select(Bat_ID, DateTime, NumberDate, corrected) |> 
-  rename("Temperature" = "corrected")
-
+#cal_data <- bind_rows(Cal_1_results, Cal_2_results) |> 
+#  select(Bat_ID, DateTime, corrected) |> 
+#  rename("Temperature" = "corrected")
+#
 ```
 
 
@@ -339,17 +326,20 @@ I will split the data, filter it, and then recombine them.
 clean_met <- clean_met %>%
   mutate(Attachment_Date = as.numeric(`Date Attached`),
          Removal_Date = as.numeric(`Date Removed`)) 
+# update this code to to cal_data once I can get this calibrated. I want to get the rest of my code working for now though. 
+clean_results <- clean_results %>%
+  mutate(NumberDate = as.numeric(DateTime))
 
-temps_with_meta <- cal_data %>%
+temps_with_meta <- clean_results %>%
   left_join(clean_met, by = "Bat_ID") #joining my calibrated data with my metadata
 
 # Filter to keep only records after attachment date
 left_trimmed <- temps_with_meta %>%
-  filter(NumberDate >= Attachment_Date)
+  filter(NumberDate >= `Date Attached`)
 
 # Filter to keep only records before removal date
 right_trimmed <- left_trimmed |> 
-  filter(NumberDate <= Removal_Date)
+  filter(NumberDate <= `Date Removed`)
 
 # Making a new data table with trimmed data 
 allbatresults2 <- right_trimmed |> 
@@ -712,6 +702,7 @@ lapply(batnames, plotly_fun3)
 Dropping bad data and gaps
 
 ```{r}
+#
 # Dropping 1
 Dropping1 <- RTrimmed |> 
   filter(Bat_ID %in% c("68.2"))
@@ -719,7 +710,7 @@ Dropping1 <- RTrimmed |>
 summary(as.factor(Dropping1$Bat_ID))
 
 Drop1 <- Dropping1 |>
-  filter(NumberDate <= "1750024800" | NumberDate >= "1750091400")
+  filter(NumberDate <= "1750024800" | NumberDate >= "1750090800")
 
 summary(as.factor(Drop1$Bat_ID))
 
@@ -734,15 +725,13 @@ summary(as.factor(Dropping2$Bat_ID))
 Drop2 <- Dropping2 |>
   filter(NumberDate <= "1750009200" | NumberDate >= "1750090800")
 
-#Dropping 3
 
-Dropping3 <- RTrimmed |> 
-  filter(Bat_ID %in% c("22"))
+# Dropping bad data I actually dropped these earlier will remove from code
 
-summary(as.factor(Dropping3$Bat_ID))
-
-Drop3 <- Dropping3 |>
-  filter(NumberDate <= "1749084600" | NumberDate >= "1749099600")
+# Bad_Drop <- RTrimmed |> 
+#  filter(Bat_ID %in% "64.2") |> 
+#  filter(Temperature > "10") |> 
+#  filter(Temperature < "45")
 
 
 # I also have mutliple loggers from the same bat, so I am going to merge these together so it shows up as one bat instead of two. 
@@ -761,9 +750,9 @@ Bat_78.9 <- bind_rows(Bat_78.2, Bat_78.3) |>
 
 
 allbatresults3.temp <- RTrimmed |> 
-  filter(!Bat_ID %in% c("68.2", "83.2", "78.2", "78.3", "22"))
+  filter(!Bat_ID %in% c("68.2", "83.2", "78.2", "78.3"))
 
-clean_results <- bind_rows(allbatresults3.temp, Drop2, Drop1, Drop3, Bat_78.9)
+clean_results <- bind_rows(allbatresults3.temp, Drop2, Drop1, Bat_78.9)
 
 
 summary(as.factor(clean_results$Bat_ID))
@@ -789,18 +778,6 @@ plotly_fun4 <- function(arg1) {
 lapply(KeptBatNames, plotly_fun4)
 ```
 
-```{r}
-
-checking <- clean_results%>%
-  dplyr::filter(Bat_ID %in% batnames) %>%
-  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
-  geom_line() +
-  theme_minimal() +
-  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
-
-# Convert to interactive
-ggplotly(checking)
-``` 
 
 
 ```{r}
@@ -816,9 +793,6 @@ We had two cohorts of bats for non thermally challenged bats. They followed the 
   rename(DateTime = "Date/Time")  |> # read in ambient temp
   mutate (DateTime = as.POSIXct(DateTime)) |> # correct format
   mutate(NumberDate = as.numeric(DateTime)) #add column changing date/time to numeric
-  
-Union_Ambient <- Union_Ambient |> 
-filter(NumberDate >= "1747407000")
 
 plot_ly(Union_Ambient,x = ~DateTime, y = ~Value,
           type = 'scatter', mode = 'lines')
@@ -907,9 +881,7 @@ Rivendell_Pre_Trim <- Rivendell_Pre |>
 Okay, now that's done.. I need to take these times and add them to the corresponding rows. I think what I am going to do is separate the boost from the primary results, because my primary result bats were all in an incubator at that time. 
 ```{r}
 Primary_results_working <- clean_results |> 
-  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) |> # results from primary immunization
-  filter(NumberDate <= "1748736000")
-
+  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) # results from primary immunization
 Secondary_results_working <- clean_results |> 
   filter(!Bat_ID %in% c("64.1", "68.1", "74.1")) # results from secondary immunization
 
@@ -995,143 +967,35 @@ SecondaryResultsMet <- SecondaryResultsMet |>
 SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] - lubridate::days(2)
 
 SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] - lubridate::days(11)
-```
 
-Okay, one of the last things I want to do is remove the decimal from the Bat ID. This was just to differentiate between loggers for one bat with all the different metadata. 
-```{r}
-Working_Secondary <- SecondaryResultsMet |> 
-  filter(Treatment %in% c("SHAM", "eVLP+LPS", "TC"))
+Final_Secondary <- SecondaryResultsMet |> 
+  select(Bat_ID, time_aligned, Temperature, deltaT)
 
-Bat_64 <- Working_Secondary |> 
-  filter(Bat_ID == "64.2")
-Bat_64$Bat_ID <- c("64")
-
-Bat_68 <- Working_Secondary |> 
-  filter(Bat_ID == "68.2")
-Bat_68$Bat_ID <- c("68")
-
-Bat_73 <- Working_Secondary |> 
-  filter(Bat_ID == "73.4")
-Bat_73$Bat_ID <- c("73")
-
-Bat_74 <- Working_Secondary |> 
-  filter(Bat_ID == "74.2")
-Bat_74$Bat_ID <- c("74")
-
-Bat_76 <- Working_Secondary |> 
-  filter(Bat_ID == "76.2")
-Bat_76$Bat_ID <- c("76")
-
-Bat_78 <- Working_Secondary |> 
-  filter(Bat_ID == "78.9")
-Bat_78$Bat_ID <- c("78")
-
-Bat_83 <- Working_Secondary |> 
-  filter(Bat_ID == "83.2")
-Bat_83$Bat_ID <- c("83")
-
-Working_Secondary2 <- Working_Secondary |> 
-  filter(!Bat_ID %in% c("64.2", "68.2", "73.4", "74.2", "76.2", "78.9", "83.2"))
-
-Working_Secondary3 <- Working_Secondary2 |> 
-  bind_rows(Bat_64, Bat_68, Bat_73, Bat_74, Bat_76, Bat_78, Bat_83)
-
-Final_working_sec <- Working_Secondary3 |> 
-  select(Bat_ID, time_aligned, Temperature, AmbientT, deltaT)
-
-Final_Secondary <- Final_working_sec |> 
+Final_Secondary <- Final_Secondary |> 
   rename(DateTime = "time_aligned") |> 
-  mutate(NumberDate = as.numeric(DateTime)) 
+  mutate(NumberDate = as.numeric(DateTime))
+boostresultsmet$shift_time_num <- as.numeric(boostresultsmet$shift_time_num)
 
-SecondaryNames <- unique(Final_Secondary$Bat_ID)
-
-Working_met_sec <- Working_Secondary3 |> 
-  select(Bat_ID, `Bat Pittag`, Group, Treatment, `Innoculation Date`, `Boost Date`)
-
-Secondary_Met2 <- Working_met_sec |> 
-  unique()
-
-SecondaryNames <- unique(Final_Secondary$Bat_ID)
-
-temp_primary_met <- Primary_results |> 
-  left_join(clean_met, join_by(Bat_ID))
-
-Bat_64.1 <- temp_primary_met |> 
-  filter(Bat_ID == "64.1")
-Bat_64.1$Bat_ID <- c("64")
-
-Bat_68.1 <- temp_primary_met |> 
-  filter(Bat_ID == "68.1")
-Bat_68.1$Bat_ID <- c("68")
-
-Bat_74.1 <- temp_primary_met |> 
-  filter(Bat_ID == "74.1")
-Bat_74.1$Bat_ID <- c("74")
-
-Primary_working <- bind_rows(Bat_64.1, Bat_68.1, Bat_74.1)
-
-Final_Primary <- Primary_working |> 
-  select(Bat_ID, DateTime, NumberDate, Temperature, AmbientT, deltaT)
-
-PrimaryNames <- unique(Final_Primary$Bat_ID)
-
-Primary_met_working <- Primary_working |> 
-  select(Bat_ID, `Bat Pittag`, Group, Treatment, `Innoculation Date`, `Boost Date`)
-
-Primary_Met <- Primary_met_working|> 
-  unique()
+Final_Primary <- Primary_results |> 
+  select(Bat_ID, DateTime, NumberDate, Temperature, deltaT)
 
 Primary_Met <- clean_met |> 
-  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) 
+  filter(Bat_ID %in% c("64.1", "68.1", "74.1"))
 
 Secondary_Ambient <- Union_Ambient |> 
   filter(NumberDate > "1748967000" , 
           NumberDate < "1749772800")
-
-Group_1_Ambient <- Union_Ambient |> 
-  filter(NumberDate > "1747406400", 
-         NumberDate < "1750290600")
-
-Group_2_Ambient <- Union_Ambient |> 
-  filter(NumberDate > "1747440000", 
-         NumberDate < "1750447800")
-
-Group_3_Ambient <- Union_Ambient |> 
-  filter(NumberDate > "1748217600", 
-         NumberDate < "1750290600")
 ```
 
-```{r}
-
-plotly_fun6 <- function(arg1) {
-  plot_ly(data = Final_Secondary[Bat_ID == arg1],
-          x = ~DateTime, y = ~Temperature,
-          type = 'scatter', mode = 'lines') %>%
-    layout(xaxis = list(title = arg1))
-}
-
-lapply(SecondaryNames, plotly_fun6)
-
-```
- 
 I shifted the data so now data all shows d21 on June 5th, the same day as D21 for Group 1. 
 I think I have all the data wrangling down so I am going to export some tsv with my final primary data, secondary data, metadata for both immunizations, and ambient temperature.
 
-
-
 ```{r}
-write_tsv(Secondary_Met2, file = "MOCO2025Secondary_Met.tsv")
+write_tsv(Secondary_Met, file = "MOCO2025Secondary_Met.tsv")
 write_tsv(Final_Primary, file = "MOCO2025PrimaryTemperature.tsv")
 write_tsv(Final_Secondary, file = "MOCO2025SecondaryTemperature.tsv")
 write_tsv(Primary_Met, file = "MOCO2025Primary_Met.tsv")
 write_tsv(Ambient_primary_working, file = "MOCO2025Primary_Ambient.tsv")
 write_tsv(Secondary_Ambient, file = "MOCO2025Secondary_Ambient.tsv")
-write_tsv(Group_1_Ambient, file = "MOCO2025_G1_Ambient.tsv")
-write_tsv(Group_2_Ambient, file = "MOCO2025_G2_Ambient.tsv")
-write_tsv(Group_3_Ambient, file = "MOCO2025_G3_Ambient.tsv")
-write_tsv(Union_Ambient, file = "MOCO2025_Ambient.tsv")
-
 ```
-
-
 
