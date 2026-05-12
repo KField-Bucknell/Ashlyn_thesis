@@ -353,7 +353,6 @@ right_trimmed <- left_trimmed |>
 
 # Making a new data table with trimmed data 
 allbatresults2 <- right_trimmed |> 
-  select(Bat_ID, DateTime, NumberDate, Temperature) |> 
   as.data.table()
 
 #checking the data
@@ -385,316 +384,146 @@ I left trimmed earlier to remove all data from before the day of attachment. I r
 
 # first trim
 Trimming1 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("22", "16", "21", "3", "9"))
+  filter(Attachment_Date == 1756771200) |> 
+  filter(NumberDate >= 1756826401)
 summary(as.factor(Trimming1$Bat_ID))
-
-Trimming1 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim1 <- Trimming1 |>
-  filter(NumberDate >= "1748967000")
-
-Trim1 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-summary(as.factor(Trim1$Bat_ID))
 
 #second trim
 
 Trimming2 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("39", "41", "44"))
+  filter(Attachment_Date == 1757116800) |> 
+  filter(NumberDate >= 1757170201)
 summary(as.factor(Trimming2$Bat_ID))
-
-Trimming2 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim2 <- Trimming2 |>
-  filter(NumberDate >= "1749151200")
-
-Trim2 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
 
 #third trim
 
 Trimming3 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("46"))
+  filter(Attachment_Date == 1757376000) |> 
+  filter(NumberDate >= 1757439601)
 summary(as.factor(Trimming3$Bat_ID))
-
-Trimming3 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim3 <- Trimming3 |>
-  filter(NumberDate >= "1749154800")
-
-Trim3 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
 
 #fourth trim
 
 Trimming4 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("47", "48"))
+  filter(Attachment_Date == 1759104000) |> 
+  filter(NumberDate >= 1759152601)
 summary(as.factor(Trimming4$Bat_ID))
-
-Trimming4 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim4 <- Trimming4 |>
-  filter(NumberDate >= "1749229200")
-
-Trim4 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
 
 #fifth trim
 
 Trimming5 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("49"))
+  filter(Attachment_Date == 1759363200) |> 
+  filter(NumberDate >= 1759419601)
 summary(as.factor(Trimming5$Bat_ID))
 
-Trimming5 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+LTrimmed <- bind_rows(Trimming1, Trimming2, Trimming3, Trimming4, Trimming5)
 
-Trim5 <- Trimming5 |>
-  filter(NumberDate >= "1748978400")
-
-Trim5 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-# sixth trim
-Trimming6 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("50", "60", "62"))
-summary(as.factor(Trimming6$Bat_ID))
-
-Trimming6 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim6 <- Trimming6 |>
-  filter(NumberDate >= "1749220800")
-
-Trim6 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-# seventh trim 
-
-Trimming7 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("54", "55"))
-summary(as.factor(Trimming7$Bat_ID))
-
-Trimming7 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim7 <- Trimming7 |>
-  filter(NumberDate >= "1749219000")
-
-Trim7 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-# eighth trim
-Trimming8 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("64.1"))
-summary(as.factor(Trimming8$Bat_ID))
-
-Trimming8 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim8 <- Trimming8 |>
-  filter(NumberDate >= "1747736400")
-
-Trim8 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-#Ninth trim
-
-Trimming9 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("64.2"))
-summary(as.factor(Trimming9$Bat_ID))
-
-Trimming9 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim9 <- Trimming9 |>
-  filter(NumberDate >= "1749923400")
-
-Trim9 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-# Tenth trim
-
-Trimming10 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("68.1", "74.1"))
-summary(as.factor(Trimming10$Bat_ID))
-
-Trimming10 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim10 <- Trimming10 |>
-  filter(NumberDate >= "1747741800")
-
-Trim10 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-# Trim 11
-Trimming11 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("68.2", "74.2", "78.2"))
-summary(as.factor(Trimming11$Bat_ID))
-
-Trimming11 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim11 <- Trimming11 |>
-  filter(NumberDate >= "1749919200")
-
-Trim11 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-#Trim 12 
-
-Trimming12 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("73.4"))
-summary(as.factor(Trimming12$Bat_ID))
-
-Trimming12 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim12 <- Trimming12 |>
-  filter(NumberDate >= "1750091400")
-
-Trim12 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-# Trim 13
-
-Trimming13 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("76.2"))
-summary(as.factor(Trimming13$Bat_ID))
-
-Trimming13 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim13 <- Trimming13 |>
-  filter(NumberDate >= "1749987600")
-
-Trim13 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-# Trim 14
-
-Trimming14 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("78.3"))
-summary(as.factor(Trimming14$Bat_ID))
-
-Trimming14 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim14 <- Trimming14 |>
-  filter(NumberDate >= "1750006800")
-
-Trim14 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-#Trim 15
-
-Trimming15 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("83.2"))
-summary(as.factor(Trimming15$Bat_ID))
-
-Trimming15 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim15 <- Trimming15 |>
-  filter(NumberDate >= "1749920400")
-
-Trim15 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-# Trim 16
-
-Trimming16 <- allbatresults2 |> 
-  filter(Bat_ID %in% c("26"))
-summary(as.factor(Trimming16$Bat_ID))
-
-Trimming16 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-Trim16 <- Trimming16 |>
-  filter(NumberDate >= "1748968200")
-
-Trim16 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-
-LTrimmed <- bind_rows(Trim1, Trim2, Trim3, Trim4, Trim5, Trim6, Trim7, Trim8, Trim9, Trim10, Trim11, Trim12, Trim13, Trim14, Trim15, Trim16)
-
-
-
-summary(as.factor(LTrimmed$Bat_ID))
-summary(as.factor(allbatresults2$Bat_ID))
 ```
 
 ## Right trim again 
 
 ```{r}
+plotly_fun3 <- function(arg1) {
+  plot_ly(data = LTrimmed[Bat_ID == arg1],
+          x = ~DateTime, y = ~Temperature,
+          type = 'scatter', mode = 'lines') %>%
+    layout(xaxis = list(title = arg1))
+  }
+```
+
+```{r}
+lapply(batnames, plotly_fun3)
+```
+
+Okay, this is looking good. I do have some more data to trim. So I am going to do that now.
+```{r}
 # Right trim 1
 RTrimming1 <- LTrimmed |> 
-  filter(Bat_ID %in% c("64.1"))
+  filter(Bat_ID %in% c("APS36008")) |> 
+  filter(!NumberDate > 1760539201)
 summary(as.factor(RTrimming1$Bat_ID))
-
-RTrimming1 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-RTrim1 <- RTrimming1 |>
-  filter(NumberDate <= "1749673200")
-
-RTrim1 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
 
 # Right trim 2
 RTrimming2 <- LTrimmed |> 
-  filter(Bat_ID %in% c("68.1"))
+  filter(Bat_ID %in% c("APS36021")) |> 
+  filter(!NumberDate > 1759998001)
 summary(as.factor(RTrimming2$Bat_ID))
-
-RTrimming2 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-RTrim2 <- RTrimming2 |>
-  filter(NumberDate <= "1748880600")
-
-RTrim2 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
 
 # Right trim 3
 
 RTrimming3 <- LTrimmed |> 
-  filter(Bat_ID %in% c("78.2"))
+  filter(Bat_ID %in% c("APS36026")) |> 
+  filter(!NumberDate > 1760208601)
 summary(as.factor(RTrimming3$Bat_ID))
-
-RTrimming3 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-RTrim3 <- RTrimming3 |>
-  filter(NumberDate <= "1749931200")
-
-RTrim3 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
 
 # Right Trim 4 
 
 RTrimming4 <- LTrimmed |> 
-  filter(Bat_ID %in% c("22"))
+  filter(Bat_ID %in% c("APS36057_boost")) |> 
+  filter(!NumberDate > 1760530201)
 summary(as.factor(RTrimming4$Bat_ID))
-
-RTrimming4 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-RTrim4 <- RTrimming4 |>
-  filter(NumberDate <= "1749742800")
-
-RTrim4 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
 
 # RTrim 5
 
 RTrimming5 <- LTrimmed |> 
-  filter(Bat_ID %in% c("21"))
+  filter(Bat_ID %in% c("APS36108")) |> 
+  filter(!NumberDate > 1760455801)
 summary(as.factor(RTrimming5$Bat_ID))
-
-RTrimming5 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
-
-RTrim5 <- RTrimming5 |>
-  filter(NumberDate <= "1749439200")
-
-RTrim5 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
 
 # RTrim 6
 
 RTrimming6 <- LTrimmed |> 
-  filter(Bat_ID %in% c("3"))
+  filter(Bat_ID %in% c("APS60081")) |> 
+  filter(!NumberDate > 1758842401)
 summary(as.factor(RTrimming6$Bat_ID))
 
-RTrimming6 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+# RTrim 7
 
-RTrim6 <- RTrimming6 |>
-  filter(NumberDate <= "1749276000")
+RTrimming7 <- LTrimmed |> 
+  filter(Bat_ID %in% c("APS60115")) |> 
+  filter(!NumberDate > 1757681401)
+summary(as.factor(RTrimming7$Bat_ID))
 
-RTrim6 |> summarize(minTimepoint = min(DateTime), maxTimepoint = max(DateTime))
+# RTrim 8
+
+RTrimming8 <- LTrimmed |> 
+  filter(Bat_ID %in% c("APS36007")) |> 
+  filter(!NumberDate > 1759327201)
+summary(as.factor(RTrimming8$Bat_ID))
+
+# RTrim 9
+
+RTrimming9 <- LTrimmed |> 
+  filter(Bat_ID %in% c("APS36106")) |> 
+  filter(!NumberDate > 1759015201)
+summary(as.factor(RTrimming9$Bat_ID))
+
+# RTrim 10
+
+RTrimming10 <- LTrimmed |> 
+  filter(Bat_ID %in% c("APS60113")) |> 
+  filter(!NumberDate > 1759327201)
+summary(as.factor(RTrimming10$Bat_ID))
 
 #Keeping all results from LTrimmed besides the ones that were right trimmed again
 
 RTrimmed_Temp <- LTrimmed |> 
-  filter(!Bat_ID %in% c("64.1", "68.1", "78.2", "22", "21", "3"))
+  filter(!Bat_ID %in% c( "APS36008", "APS36021", "APS36026", "APS36057_boost", "APS36108", "APS60081", "APS60115", "APS36007", "APS36106", "APS60113"))
 
-summary(as.factor(RTrimmed_Temp$Bat_ID))
+Trimmed <- bind_rows(RTrimmed_Temp, RTrimming1, RTrimming2, RTrimming3, RTrimming4, RTrimming5, RTrimming6, RTrimming7, RTrimming8, RTrimming9, RTrimming10)
 
-RTrimmed <- bind_rows(RTrimmed_Temp, RTrim1, RTrim2, RTrim3, RTrim4, RTrim5, RTrim6)
-
-summary(as.factor(RTrimmed$Bat_ID))
+summary(as.factor(Trimmed$Bat_ID))
 
 ```
 
 Now I want to look at the data and make sure it looks right and see what else needs to be trimmed
 
 ```{r}
-plotly_fun3 <- function(arg1) {
-  plot_ly(data = RTrimmed[Bat_ID == arg1],
+cleaning_names <- unique(Trimmed$Bat_ID)
+
+
+plotly_fun4 <- function(arg1) {
+  plot_ly(data = Trimmed[Bat_ID == arg1],
           x = ~DateTime, y = ~Temperature,
           type = 'scatter', mode = 'lines') %>%
     layout(xaxis = list(title = arg1))
@@ -704,70 +533,29 @@ plotly_fun3 <- function(arg1) {
 
 
 ```{r}
-lapply(batnames, plotly_fun3)
+lapply(cleaning_names, plotly_fun4)
 ```
-
-
-
-Dropping bad data and gaps
+This looks pretty good to me. The last thing I am going to do is drop data above 40 and below 12.
 
 ```{r}
-# Dropping 1
-Dropping1 <- RTrimmed |> 
-  filter(Bat_ID %in% c("68.2"))
-
-summary(as.factor(Dropping1$Bat_ID))
-
-Drop1 <- Dropping1 |>
-  filter(NumberDate <= "1750024800" | NumberDate >= "1750091400")
-
-summary(as.factor(Drop1$Bat_ID))
-
-
-#Dropping 2
-
-Dropping2 <- RTrimmed |> 
-  filter(Bat_ID %in% c("83.2"))
-
-summary(as.factor(Dropping2$Bat_ID))
-
-Drop2 <- Dropping2 |>
-  filter(NumberDate <= "1750009200" | NumberDate >= "1750090800")
-
-#Dropping 3
-
-Dropping3 <- RTrimmed |> 
-  filter(Bat_ID %in% c("22"))
-
-summary(as.factor(Dropping3$Bat_ID))
-
-Drop3 <- Dropping3 |>
-  filter(NumberDate <= "1749084600" | NumberDate >= "1749099600")
-
-
-# I also have mutliple loggers from the same bat, so I am going to merge these together so it shows up as one bat instead of two. 
-
-Bat_78.2 <- RTrimmed |> 
-  filter(Bat_ID == "78.2")
-Bat_78.3 <- RTrimmed |> 
-  filter(Bat_ID == "78.3")
-
-Bat_78.9 <- bind_rows(Bat_78.2, Bat_78.3) |>  
-  mutate(ID = "78.9" ) |> 
-  select(DateTime, NumberDate, Temperature, ID) |> 
-  rename(Bat_ID = ID)
-
-# Removing the edited data in this chunk from RTrimmed so I can merge all the data back together
-
-
-allbatresults3.temp <- RTrimmed |> 
-  filter(!Bat_ID %in% c("68.2", "83.2", "78.2", "78.3", "22"))
-
-clean_results <- bind_rows(allbatresults3.temp, Drop2, Drop1, Drop3, Bat_78.9)
-
-
-summary(as.factor(clean_results$Bat_ID))
+final_results <- Trimmed |> 
+  filter(Temperature > 12 & # removes temperature data under 0 degrees
+        Temperature < 40) 
 ```
+
+```{r}
+results_clean <- final_results%>%
+  dplyr::filter(Bat_ID %in% cleaning_names) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(10, 40) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+
+# Convert to interactive
+ggplotly(results_clean)
+```
+
 
 I need to remove some names from batnames. There are a handful of loggers from bats that are excluded from the study or have too few data points and were dropped during trimming
 
