@@ -378,7 +378,7 @@ lapply(batnames, plotly_fun2)
 ```
 ## Left trim again
 
-I left trimmed earlier to remove all data from before the day of attachment. I really want to include as much as possible so I am trimming again by the attachment time. This is going to take forever... :/
+I left trimmed earlier to remove all data from before the day of attachment. I really want to include as much as possible so I am trimming again by the attachment time.
 
 ```{r}
 
@@ -413,7 +413,7 @@ summary(as.factor(Trimming4$Bat_ID))
 
 Trimming5 <- allbatresults2 |> 
   filter(Attachment_Date == 1759363200) |> 
-  filter(NumberDate >= 1759419601)
+  filter(NumberDate >= 1759420201)
 summary(as.factor(Trimming5$Bat_ID))
 
 LTrimmed <- bind_rows(Trimming1, Trimming2, Trimming3, Trimming4, Trimming5)
@@ -544,27 +544,8 @@ final_results <- Trimmed |>
 ```
 
 ```{r}
-results_clean <- final_results%>%
-  dplyr::filter(Bat_ID %in% cleaning_names) %>%
-  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
-  geom_line() +
-  ylim(10, 40) +
-  theme_minimal() +
-  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
-
-# Convert to interactive
-ggplotly(results_clean)
-```
-
-
-I need to remove some names from batnames. There are a handful of loggers from bats that are excluded from the study or have too few data points and were dropped during trimming
-
-```{r}
-
-KeptBatNames <- unique(clean_results$Bat_ID)
-
-plotly_fun4 <- function(arg1) {
-  plot_ly(data = clean_results[Bat_ID == arg1],
+plotly_fun5 <- function(arg1) {
+  plot_ly(data = final_results[Bat_ID == arg1],
           x = ~DateTime, y = ~Temperature,
           type = 'scatter', mode = 'lines') %>%
     layout(xaxis = list(title = arg1))
@@ -572,354 +553,365 @@ plotly_fun4 <- function(arg1) {
 
 ```
 
-
 ```{r}
-lapply(KeptBatNames, plotly_fun4)
+lapply(cleaning_names, plotly_fun5)
 ```
 
 ```{r}
+# write_tsv(clean_results, file = "TrimmedTemperatureLoggerData.long.tsv")
+```
 
-checking <- clean_results%>%
-  dplyr::filter(Bat_ID %in% batnames) %>%
-  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
-  geom_line() +
-  theme_minimal() +
-  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
-
-# Convert to interactive
-ggplotly(checking)
-``` 
-
+## Renaming 
+Before I go any further, I want to rename some of my Bat Ids that have boost in the name 
 
 ```{r}
-write_tsv(clean_results, file = "TrimmedTemperatureLoggerData.long.tsv")
+summary(as.factor(final_results$Bat_ID))
+
+APS36007 <- final_results |> 
+  filter(Bat_ID == "APS36007_boost")
+APS36007$Bat_ID <- c("APS36007")
+
+APS36010 <- final_results |> 
+  filter(Bat_ID == "APS36010_boost")
+APS36010$Bat_ID <- c("APS36010")
+
+APS36057 <- final_results |> 
+  filter(Bat_ID == "APS36057_boost")
+APS36057$Bat_ID <- c("APS36057")
+
+APS60079 <- final_results |> 
+  filter(Bat_ID == "APS60079_boost")
+APS60079$Bat_ID <- c("APS60079")
+
+APS60081 <- final_results |> 
+  filter(Bat_ID == "APS60081_boost")
+APS60081$Bat_ID <- c("APS60081")
+
+APS60088 <- final_results |> 
+  filter(Bat_ID == "APS60088_boost")
+APS60088$Bat_ID <- c("APS60088")
+
+APS60113 <- final_results |> 
+  filter(Bat_ID == "APS60113_boost")
+APS60113$Bat_ID <- c("APS60113")
+
+APS60115 <- final_results |> 
+  filter(Bat_ID == "APS60115_boost")
+APS60115$Bat_ID <- c("APS60115")
+
+APS60123 <- final_results |> 
+  filter(Bat_ID == "APS60123_boost")
+APS60123$Bat_ID <- c("APS60123")
+
+APS60156 <- final_results |> 
+  filter(Bat_ID == "APS60156_boost")
+APS60156$Bat_ID <- c("APS60156")
+
+renaming_results <- final_results |> 
+  filter(!Bat_ID %in% c ("APS60156_boost", "APS60123_boost", "APS60115_boost", "APS60113_boost", "APS60088_boost", "APS60081_boost", "APS60079_boost", "APS36057_boost", "APS36010_boost", "APS36007_boost"))
+
+Bat_results_met <- bind_rows(renaming_results, APS36007, APS36010, APS36057, APS60079, APS60081, APS60088, APS60113, APS60115, APS60123, APS60156)
 ```
 
 
 ## Ambient Temp
-We had two cohorts of bats for non thermally challenged bats. They followed the exact same timeline but were treated on different days of the week. This was done to limit handling time of bats at one time. Because of this, ambient temperature is different for group 1 D21 bats and group 2 D21 bats.
+I do not have ambient data from the flight cage, but I do have ambient data and relative humidity from the thermal challenges. There were two sensor pushes for each thermal challenge. I am going to take the average of the two. 
 
+### Basal TC
 ```{r}
- Union_Ambient <- read_excel("MOCO Data/Roost Temps/MOCO_Union_Ambient.xlsx") |> 
-  rename(DateTime = "Date/Time")  |> # read in ambient temp
-  mutate (DateTime = as.POSIXct(DateTime)) |> # correct format
-  mutate(NumberDate = as.numeric(DateTime)) #add column changing date/time to numeric
-  
-Union_Ambient <- Union_Ambient |> 
-filter(NumberDate >= "1747407000")
-
-plot_ly(Union_Ambient,x = ~DateTime, y = ~Value,
-          type = 'scatter', mode = 'lines')
-
-Rivendell_Top_D0 <- read_excel("MOCO Data/Roost Temps/Rivendell-Cold_Top_D0.xlsx") |> rename(DateTime = "Date/Time") |> # read in temp from top of incubator from D0 thermal challenge 
-  mutate(DateTime = as.POSIXct(DateTime)) |> 
-  mutate(Shift_date = DateTime - seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+Basal_Ambient1 <- read.csv("Ambient/09.04.2025_basaltempdata1.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
+  mutate(DateTime = mdy_hm(DateTime)) |> 
+  mutate(Shift_date = DateTime + seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
   mutate(NumberDate = as.numeric(Shift_date))
 
-Rivendell_Bottom_D0 <- read_excel("MOCO Data/Roost Temps/Rivendell-Cold_Bottom_D0.xlsx") |> rename(DateTime = "Date/Time") |> # read in temp from top of incubator from D0 thermal challenge
-  mutate(DateTime = as.POSIXct(DateTime)) |> 
-   mutate(Shift_date = DateTime - seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+Basal_Ambient2 <- read.csv("Ambient/09.04.2025_basaltempdata2.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
+  mutate(DateTime = mdy_hm(DateTime)) |> 
+  mutate(Shift_date = DateTime + seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
   mutate(NumberDate = as.numeric(Shift_date))
 
-Rivendell_Primary <- Rivendell_Top_D0 |> 
-  left_join(Rivendell_Bottom_D0, join_by(NumberDate)) |>  # joining the top and bottom temperature data from the primary thermal challenge
+Basal_working <- Basal_Ambient1 |> 
+  left_join(Basal_Ambient2, join_by(NumberDate)) |>  # joining the top and bottom temperature data from the primary thermal challenge
   as.data.table()
 
-Rivendell_Primary <- Rivendell_Primary |> 
-  select(DateTime.x, NumberDate, Value.x, Value.y, Unit.x)  |> # keeping certain columns 
-  rename(Unit = "Unit.x", # renaming columns
-         Top = "Value.x",
-         Bottom = "Value.y",
-         DateTime = "DateTime.x") |> 
-  drop_na(Bottom) # dropping NA's because loggers were not started and stopped at the exact same time
-glimpse(Rivendell_Primary)
+Basal_working <- Basal_working |> 
+  mutate(avg_temp = rowMeans(pick("Temperature.x", "Temperature.y"))) |> 
+  mutate(avg_RH = rowMeans(pick("Humidity..x", "Humidity..y"))) 
 
-# because I have temperature from the top and bottom of the incubator and there might be slight differences between them and I don't know which temp the bats are exposed to. I am going to get the average
-
-Rivendell_Primary <- Rivendell_Primary |> 
-  mutate(avg_pri = rowMeans(pick("Top", "Bottom"))) 
-  
+Basal_Ambient <- Basal_working |>  
+  select(Shift_date.x, NumberDate, avg_temp, avg_RH)  |> # keeping certain columns 
+  rename(DateTime = "Shift_date.x") |>  # renaming columns 
+  filter(NumberDate >= 1757001841 &
+           NumberDate <= 1757081281)
 ```
 
- Now I have to do the same thing but for the pre- thermal challenge
+### Primary TC Group 1
+
 ```{r}
-Rivendell_Top_Pre <- read_excel("MOCO Data/Roost Temps/Rivendell-Cold_Top_D-5.xlsx") |> # read in temp from top of incubator from D0 thermal challenge
-  rename(DateTime = "Date/Time") |> 
-  mutate(DateTime = as.POSIXct(DateTime)) |> 
-  mutate(Shift_date = DateTime - seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+G1D0_Ambient1 <- read.csv("Ambient/09.08.2025_G1D0_1.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
+  mutate(DateTime = mdy_hm(DateTime)) |> 
+  mutate(Shift_date = DateTime + seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
   mutate(NumberDate = as.numeric(Shift_date))
 
-Rivendell_Bottom_Pre <- read_excel("MOCO Data/Roost Temps/Rivendell-Cold_Bottom_D-5.xlsx") |> rename(DateTime = "Date/Time") |> # read in temp from top of incubator from D0 thermal challenge
-  mutate(DateTime = as.POSIXct(DateTime)) |> 
-  mutate(Shift_date = DateTime - seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+G1D0_Ambient2 <- read.csv("Ambient/09.08.2025_G1D0_2.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
+  mutate(DateTime = mdy_hm(DateTime)) |> 
+  mutate(Shift_date = DateTime + seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
   mutate(NumberDate = as.numeric(Shift_date))
 
-Rivendell_Pre <- Rivendell_Top_Pre |> 
-  left_join(Rivendell_Bottom_Pre, join_by(NumberDate)) |> # joining the top and bottom temperature data from the primary thermal challenge
+G1D0_working <- G1D0_Ambient1|> 
+  left_join(G1D0_Ambient2, join_by(NumberDate)) |>  # joining the top and bottom temperature data from the primary thermal challenge
   as.data.table()
 
-Rivendell_Pre <- Rivendell_Pre |> 
-  select(DateTime.x, NumberDate, Value.x, Value.y, Unit.x)  |> # keeping certain columns 
-  rename(Unit = "Unit.x", # renaming columns
-         Top = "Value.x",
-         Bottom = "Value.y",
-         DateTime = "DateTime.x") |> 
-  drop_na(Bottom) # dropping NA's because loggers were not started and stopped at the exact same time
-glimpse(Rivendell_Pre)
+G1D0_working <- G1D0_working |> 
+  mutate(avg_temp = rowMeans(pick("Temperature.x", "Temperature.y"))) |> 
+  mutate(avg_RH = rowMeans(pick("Humidity..x", "Humidity..y"))) 
 
-# because I have temperature from the top and bottom of the incubator and there might be slight differences between them and I don't know which temp the bats are exposed to. I am going to get the average
-
-Rivendell_Pre <- Rivendell_Pre |> 
-  mutate(avg_pre = rowMeans(pick("Top", "Bottom"))) 
-
+G1D0_Ambient <- G1D0_working |>  
+  select(Shift_date.x, NumberDate, avg_temp, avg_RH)  |> # keeping certain columns 
+  rename(DateTime = "Shift_date.x") |>  # renaming columns 
+  filter(NumberDate >= 1757344141 &
+           NumberDate <= 1757423341)
 ```
 
-Now I want to only keep the data from the actual thermal challenges
-Start time for the pre-thermal challenge was 12:05 23-May-2025 to 01:17 24-May-2025
-Start Time for primary thermal challenge was 16:36 26-May-2025 to 00:44 27-May-2025
+### Primary TC Group 2
 
 ```{r}
-Rivendell_Primary_Trim <- Rivendell_Primary |> 
-  filter(NumberDate > "1748277361", 
-         NumberDate < "1748306641") |> 
-  select(DateTime, NumberDate, avg_pri) |> 
-  rename(Value = "avg_pri")
+G2D0_Ambient1 <- read.csv("Ambient/09.11.2025_G2D0_1.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
+  mutate(DateTime = mdy_hm(DateTime)) |> 
+  mutate(Shift_date = DateTime + seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+  mutate(NumberDate = as.numeric(Shift_date))
 
-Rivendell_Pre_Trim <- Rivendell_Pre |> 
-  filter(NumberDate > "1748001901", 
-         NumberDate < "1748049421") |> 
-  select(DateTime, NumberDate, avg_pre) |> 
-  rename(Value = "avg_pre")
+G2D0_Ambient2 <- read.csv("Ambient/09.11.2025_G2D0_2.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
+  mutate(DateTime = mdy_hm(DateTime)) |> 
+  mutate(Shift_date = DateTime + seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+  mutate(NumberDate = as.numeric(Shift_date))
+
+G2D0_working <- G2D0_Ambient1|> 
+  left_join(G2D0_Ambient2, join_by(NumberDate)) |>  # joining the top and bottom temperature data from the primary thermal challenge
+  as.data.table()
+
+G2D0_working <- G2D0_working |> 
+  mutate(avg_temp = rowMeans(pick("Temperature.x", "Temperature.y"))) |> 
+  mutate(avg_RH = rowMeans(pick("Humidity..x", "Humidity..y"))) 
+
+G2D0_Ambient <- G2D0_working |>  
+  select(Shift_date.x, NumberDate, avg_temp, avg_RH)  |> # keeping certain columns 
+  rename(DateTime = "Shift_date.x") |>  # renaming columns 
+  filter(NumberDate >= 1757602681 &
+           NumberDate <= 1757681881)
 ```
 
-Okay, now that's done.. I need to take these times and add them to the corresponding rows. I think what I am going to do is separate the boost from the primary results, because my primary result bats were all in an incubator at that time. 
+I only have humidity for one sensor push for both secondary thermal challenges
+
+### Secondary TC Group 1
 ```{r}
-Primary_results_working <- clean_results |> 
-  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) |> # results from primary immunization
-  filter(NumberDate <= "1748736000")
+G1D21_Ambient1 <- read.csv("Ambient/09.29.2025_G1D21_1.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
+  mutate(DateTime = mdy_hm(DateTime)) |> 
+  mutate(Shift_date = DateTime + seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+  mutate(NumberDate = as.numeric(Shift_date))
 
-Secondary_results_working <- clean_results |> 
-  filter(!Bat_ID %in% c("64.1", "68.1", "74.1")) # results from secondary immunization
+G1D21_Ambient2 <- read.csv("Ambient/09.29.2025_G1D21_2.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
+  mutate(DateTime = mdy_hm(DateTime)) |> 
+  mutate(Shift_date = DateTime + seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+  mutate(NumberDate = as.numeric(Shift_date))
 
-# trim down the ambient data to the dates and time loggers were attached to the bats
-Ambient_primary_working <- Union_Ambient |> 
-  filter(NumberDate <= "1748736000", 
-         NumberDate >= "1747736400")
+G1D21_working <- G1D21_Ambient1|> 
+  left_join(G1D21_Ambient2, join_by(NumberDate)) |>  # joining the top and bottom temperature data from the primary thermal challenge
+  as.data.table()
 
-# now I need to filter out times when the bats were in the incubators instead of outside with ambient temperature
-AP_Trim1 <- Ambient_primary_working |> 
-  filter(NumberDate <= "1748001901")
+G1D21_working <- G1D21_working |> 
+  mutate(avg_temp = rowMeans(pick("Temperature.x", "Temperature.y")))
 
-AP_Trim2 <- Ambient_primary_working |> 
-   filter(NumberDate >= "1748049421",
-          NumberDate <= "1748277361")
-
-Ap_Trim3 <- Ambient_primary_working |> 
-  filter(NumberDate >= "1748306641")
-          
-# Now I am going to combine the incubator temps and ambient temps into one dataframe in one column. This willl make calculating my delta T much easier.. I think.... 
-
-Primary_exposure_temp <- bind_rows(AP_Trim1, Rivendell_Pre_Trim, AP_Trim2, Rivendell_Primary_Trim, Ap_Trim3)
-
-Primary_results_working <- Primary_results_working |>  
-  left_join(Primary_exposure_temp, join_by("NumberDate"))
-
-Primary_results_working <- Primary_results_working |> 
-  select(Bat_ID, DateTime.x, NumberDate, Temperature, Value, Unit) |> 
-  rename(AmbientT = "Value",
-         DateTime = "DateTime.x")
-
-Primary_results <- Primary_results_working |> 
-  mutate(deltaT = Temperature - AmbientT)
-
-Secondary_results <- Secondary_results_working |> 
-  left_join(Union_Ambient, join_by(NumberDate))
-
-Secondary_results <- Secondary_results |> 
-  select(Bat_ID, DateTime.x, NumberDate, Temperature, Value, Unit) |> 
-  rename(AmbientT = "Value",
-         DateTime = "DateTime.x")
-
-Secondary_results <- Secondary_results |> 
-  mutate(deltaT = Temperature - AmbientT)
-
+G1D21_Ambient <- G1D21_working |>  
+  select(Shift_date.x, NumberDate, avg_temp,Humidity.)  |> # keeping certain columns
+  rename(DateTime = "Shift_date.x") |>
+  rename(avg_RH = "Humidity.") |> # renaming columns 
+  filter(NumberDate >= 1759155061 &
+           NumberDate <= 1759234201)
 ```
 
+### Secondary TC Group 2
+```{r}
+G2D21_Ambient1 <- read.csv("Ambient/10.02.2025_G2D21_1.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
+  mutate(DateTime = mdy_hm(DateTime)) |> 
+  mutate(Shift_date = DateTime + seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+  mutate(NumberDate = as.numeric(Shift_date))
 
+G2D21_Ambient2 <- read.csv("Ambient/10.02.2025_G2D21_2.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
+  mutate(DateTime = mdy_hm(DateTime)) |> 
+  mutate(Shift_date = DateTime + seconds(1)) |> # data was recorded on the 00:00:01 need to shift it
+  mutate(NumberDate = as.numeric(Shift_date))
+
+G2D21_working <- G2D21_Ambient1|> 
+  left_join(G2D21_Ambient2, join_by(NumberDate)) |>  # joining the top and bottom temperature data from the primary thermal challenge
+  as.data.table()
+
+G2D21_working <- G2D21_working |> 
+  mutate(avg_temp = rowMeans(pick("Temperature.x", "Temperature.y")))
+
+G2D21_Ambient <- G2D21_working |>  
+  select(Shift_date.x, NumberDate, avg_temp,Humidity.)  |> # keeping certain columns
+  rename(DateTime = "Shift_date.x") |>
+  rename(avg_RH = "Humidity.") |> # renaming columns 
+  filter(NumberDate >= 1759417921 &
+           NumberDate <= 1759497061)
+```
+
+Okay, now that I have all that sorted out. I am going to combine the temperature data with the metadata so I can get the match the ambient TC temp with the bats temp data.
+
+```{r}
+TC_results <- Bat_results_met |> 
+  filter(Treatment %in% c("Primary", "Secondary", "Dual")) # keep only thermally challenged bats
+
+working_Basal_results <- TC_results |> 
+  left_join(Basal_Ambient, join_by(NumberDate)) |> # combining with basal ambient data
+  drop_na(avg_temp) #needed to drop na's 
+  
+Basal_TC_results <- working_Basal_results |> 
+  select(Bat_ID, DateTime.x, NumberDate, Temperature, avg_temp, avg_RH) |> 
+  rename(DateTime = "DateTime.x") |> 
+  mutate(deltaT = Temperature - avg_temp )
+```
 
 ### Shifting Data
 
-We had two cohorts of bats for non thermally challenged bats. They followed the exact same timeline but were treated on different days of the week. This was done to limit handling time of bats at one time. Because of this, ambient temperature is different for group 1 D21 bats and group 2 D21 bats. 
+We had two cohorts of bats that followed the exact same timeline but were treated on different days of the week. This was done to limit handling time of bats at one time. The date is not very interesting to me, so I want to shift them so they all fall on the same project date.
 
 ```{r}
-SecondaryBatNames <- unique(Secondary_results$Bat_ID)
+Bat_results_met$time_aligned <- Bat_results_met$DateTime
 
-Secondary_Met <- no_hot_met %>%
-  filter(Bat_ID %in% SecondaryBatNames) |> 
-  select(! "Logger location") |> 
-  select(! "Notes")
+Bat_results_met$time_aligned[Bat_results_met$Group == "GP 2"] <- Bat_results_met$time_aligned[Bat_results_met$Group == "GP 2"] - lubridate::days(3)
 
-summary(as.factor(Secondary_Met$Treatment))
-# shows 6 TC bats but I thought we had 7.. look into this.
-
-SecondaryResultsMet <- Secondary_results |> 
-left_join(Secondary_Met, by = join_by(Bat_ID))
-
-SecondaryResultsMet %>%
-  group_by(Bat_ID) %>%
-  summarize(Min_DateTime = min(DateTime), Max_DateTime = max(DateTime))
-```
-
-```{r}
-SecondaryResultsMet$time_aligned <- SecondaryResultsMet$DateTime
-
-md.pattern(SecondaryResultsMet, rotate.names = TRUE)
-
-SecondaryResultsMet <- SecondaryResultsMet |> 
-  select(! "Serial Number") |> 
-  select(! "Logger Name") |> 
-  select(! "Filename")
-
-SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "2"] - lubridate::days(2)
-
-SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] <- SecondaryResultsMet$time_aligned[SecondaryResultsMet$Group == "3"] - lubridate::days(11)
-```
-
-Okay, one of the last things I want to do is remove the decimal from the Bat ID. This was just to differentiate between loggers for one bat with all the different metadata. 
-```{r}
-Working_Secondary <- SecondaryResultsMet |> 
-  filter(Treatment %in% c("SHAM", "eVLP+LPS", "TC"))
-
-Bat_64 <- Working_Secondary |> 
-  filter(Bat_ID == "64.2")
-Bat_64$Bat_ID <- c("64")
-
-Bat_68 <- Working_Secondary |> 
-  filter(Bat_ID == "68.2")
-Bat_68$Bat_ID <- c("68")
-
-Bat_73 <- Working_Secondary |> 
-  filter(Bat_ID == "73.4")
-Bat_73$Bat_ID <- c("73")
-
-Bat_74 <- Working_Secondary |> 
-  filter(Bat_ID == "74.2")
-Bat_74$Bat_ID <- c("74")
-
-Bat_76 <- Working_Secondary |> 
-  filter(Bat_ID == "76.2")
-Bat_76$Bat_ID <- c("76")
-
-Bat_78 <- Working_Secondary |> 
-  filter(Bat_ID == "78.9")
-Bat_78$Bat_ID <- c("78")
-
-Bat_83 <- Working_Secondary |> 
-  filter(Bat_ID == "83.2")
-Bat_83$Bat_ID <- c("83")
-
-Working_Secondary2 <- Working_Secondary |> 
-  filter(!Bat_ID %in% c("64.2", "68.2", "73.4", "74.2", "76.2", "78.9", "83.2"))
-
-Working_Secondary3 <- Working_Secondary2 |> 
-  bind_rows(Bat_64, Bat_68, Bat_73, Bat_74, Bat_76, Bat_78, Bat_83)
-
-Final_working_sec <- Working_Secondary3 |> 
-  select(Bat_ID, time_aligned, Temperature, AmbientT, deltaT)
-
-Final_Secondary <- Final_working_sec |> 
+all_results_met <- Bat_results_met |> 
+  select(!c(`Logger location`, NumberDate, DateTime)) |> 
   rename(DateTime = "time_aligned") |> 
-  mutate(NumberDate = as.numeric(DateTime)) 
+  mutate(NumberDate = as.numeric(DateTime))
 
-SecondaryNames <- unique(Final_Secondary$Bat_ID)
-
-Working_met_sec <- Working_Secondary3 |> 
-  select(Bat_ID, `Bat Pittag`, Group, Treatment, `Innoculation Date`, `Boost Date`)
-
-Secondary_Met2 <- Working_met_sec |> 
-  unique()
-
-SecondaryNames <- unique(Final_Secondary$Bat_ID)
-
-temp_primary_met <- Primary_results |> 
-  left_join(clean_met, join_by(Bat_ID))
-
-Bat_64.1 <- temp_primary_met |> 
-  filter(Bat_ID == "64.1")
-Bat_64.1$Bat_ID <- c("64")
-
-Bat_68.1 <- temp_primary_met |> 
-  filter(Bat_ID == "68.1")
-Bat_68.1$Bat_ID <- c("68")
-
-Bat_74.1 <- temp_primary_met |> 
-  filter(Bat_ID == "74.1")
-Bat_74.1$Bat_ID <- c("74")
-
-Primary_working <- bind_rows(Bat_64.1, Bat_68.1, Bat_74.1)
-
-Final_Primary <- Primary_working |> 
-  select(Bat_ID, DateTime, NumberDate, Temperature, AmbientT, deltaT)
-
-PrimaryNames <- unique(Final_Primary$Bat_ID)
-
-Primary_met_working <- Primary_working |> 
-  select(Bat_ID, `Bat Pittag`, Group, Treatment, `Innoculation Date`, `Boost Date`)
-
-Primary_Met <- Primary_met_working|> 
-  unique()
-
-Primary_Met <- clean_met |> 
-  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) 
-
-Secondary_Ambient <- Union_Ambient |> 
-  filter(NumberDate > "1748967000" , 
-          NumberDate < "1749772800")
-
-Group_1_Ambient <- Union_Ambient |> 
-  filter(NumberDate > "1747406400", 
-         NumberDate < "1750290600")
-
-Group_2_Ambient <- Union_Ambient |> 
-  filter(NumberDate > "1747440000", 
-         NumberDate < "1750447800")
-
-Group_3_Ambient <- Union_Ambient |> 
-  filter(NumberDate > "1748217600", 
-         NumberDate < "1750290600")
 ```
 
 ```{r}
+working_D0G1 <- all_results_met |> 
+  left_join(G1D0_Ambient, join_by(NumberDate)) |> 
+  filter(Treatment %in% c("Primary", "Dual")) |> 
+  drop_na(avg_temp)
 
-plotly_fun6 <- function(arg1) {
-  plot_ly(data = Final_Secondary[Bat_ID == arg1],
-          x = ~DateTime, y = ~Temperature,
-          type = 'scatter', mode = 'lines') %>%
-    layout(xaxis = list(title = arg1))
-}
+G1D0_results <- working_D0G1 |> 
+  select(Bat_ID, DateTime.x, NumberDate, Temperature, avg_temp, avg_RH) |>  rename(DateTime = "DateTime.x") |> 
+  mutate(deltaT = Temperature - avg_temp )
+  
+working_D0G2 <- all_results_met |> 
+  left_join(G2D0_Ambient, join_by(NumberDate)) |> 
+  filter(Treatment %in% c("Primary", "Dual")) |> 
+  drop_na(avg_temp)
 
-lapply(SecondaryNames, plotly_fun6)
+G2D0_results <- working_D0G2 |> 
+  select(Bat_ID, DateTime.x, NumberDate, Temperature, avg_temp, avg_RH) |>  rename(DateTime = "DateTime.x") |> 
+  mutate(deltaT = Temperature - avg_temp )
 
+Primary_TC_results <- bind_rows(G1D0_results, G2D0_results)
+```
+
+```{r}
+working_D21G1 <- all_results_met |> 
+  left_join(G1D21_Ambient, join_by(NumberDate)) |> 
+  filter(Treatment %in% c("Secondary", "Dual")) |> 
+  drop_na(avg_temp)
+
+G1D21_results <- working_D21G1 |> 
+  select(Bat_ID, DateTime.x, NumberDate, Temperature, avg_temp, avg_RH) |>  rename(DateTime = "DateTime.x") |> 
+  mutate(deltaT = Temperature - avg_temp )
+  
+working_D21G2 <- all_results_met |> 
+  left_join(G2D21_Ambient, join_by(NumberDate)) |> 
+  filter(Treatment %in% c("Secondary", "Dual")) |> 
+  drop_na(avg_temp)
+
+G2D21_results <- working_D21G2 |> 
+  select(Bat_ID, DateTime.x, NumberDate, Temperature, avg_temp, avg_RH) |>  rename(DateTime = "DateTime.x") |> 
+  mutate(deltaT = Temperature - avg_temp )
+
+Secondary_TC_results <- bind_rows(G1D21_results, G2D21_results)
+```
+
+```{r}
+Bat_results <- all_results_met |> 
+  select(Bat_ID, DateTime, NumberDate, Temperature)
+
+Bat_Metadata_temp <- all_results_met |> 
+  select(Bat_ID, `Bat Band`, Treatment, Group, Sex)
+
+Bat_Metadata <- Bat_Metadata_temp[!duplicated(Bat_Metadata_temp$Bat_ID)]
+```
+
+```{r}
+Bat_Primary <- Bat_results |> 
+  filter(NumberDate >= 1757181601 & 
+          NumberDate < 1757808001)
+
+Bat_Secondary <- Bat_results |> 
+  filter(NumberDate >= 1758844801 &
+          NumberDate < 1759536001)
 ```
  
 I shifted the data so now data all shows d21 on June 5th, the same day as D21 for Group 1. 
 I think I have all the data wrangling down so I am going to export some tsv with my final primary data, secondary data, metadata for both immunizations, and ambient temperature.
 
 
+Okay, now I am going to remove the days when we handled the bats so I can have some clean circadian rhythm data
+```{r}
+chunk1 <- interval(as.POSIXct("2023-01-01 02:00:00"), as.POSIXct("2023-01-01 04:00:00"))
+chunk2 <- interval(as.POSIXct("2023-01-01 07:00:00"), as.POSIXct("2023-01-01 08:00:00"))
+
+# Filter out anything within those intervals
+df_clean <- df %>%
+  filter(!(time %within% chunk1 | time %within% chunk2))
+
+GP_1_cleaned <- all_results_met |> 
+  filter(Group == "GP 1") |> 
+  filter(!NumberDate <= 1757181601 | !NumberDate >= 1756987201) |> 
+  filter(!NumberDate <= 1757694601 | !NumberDate >= 1757329201) |> 
+  filter(!NumberDate <= 1759509001 | !NumberDate >= 1759147201) |> 
+  filter(!NumberDate <= 1759838401| !NumberDate >= 1759752001)
+
+GP_2_cleaned <- all_results_met |> 
+  filter(Group == "GP 2") |> 
+  filter(!NumberDate <= 1756923001 | !NumberDate >= 1756728001) |> 
+  filter(!NumberDate <= 1757694601 | !NumberDate >= 1757329201) |> 
+  filter(!NumberDate <= 1759509001 | !NumberDate >= 1759147201) |> 
+  filter(!NumberDate <= 1759838401| !NumberDate >= 1759752001)
+
+Results_Cleaned <- bind_rows(GP_1_cleaned, GP_2_cleaned) |> 
+  select(Bat_ID, DateTime, NumberDate, Temperature)
+```
+
+Okay, I just want to make sure this worked correctly so I am going to plot it all. 
 
 ```{r}
-write_tsv(Secondary_Met2, file = "MOCO2025Secondary_Met.tsv")
-write_tsv(Final_Primary, file = "MOCO2025PrimaryTemperature.tsv")
-write_tsv(Final_Secondary, file = "MOCO2025SecondaryTemperature.tsv")
-write_tsv(Primary_Met, file = "MOCO2025Primary_Met.tsv")
-write_tsv(Ambient_primary_working, file = "MOCO2025Primary_Ambient.tsv")
-write_tsv(Secondary_Ambient, file = "MOCO2025Secondary_Ambient.tsv")
-write_tsv(Group_1_Ambient, file = "MOCO2025_G1_Ambient.tsv")
-write_tsv(Group_2_Ambient, file = "MOCO2025_G2_Ambient.tsv")
-write_tsv(Group_3_Ambient, file = "MOCO2025_G3_Ambient.tsv")
-write_tsv(Union_Ambient, file = "MOCO2025_Ambient.tsv")
+final_names <- unique(Bat_results$Bat_ID)
+
+checking <- Results_Cleaned%>%
+  dplyr::filter(Bat_ID %in% batnames) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(10, 40) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+
+# Convert to interactive
+ggplotly(checking)
 
 ```
 
+
+```{r}
+write_tsv(Bat_Secondary, file = "EPFU2025SecondaryTemperature.tsv")
+write_tsv(Bat_Primary, file = "EPFU2025PrimaryTemperature.tsv")
+write_tsv(Bat_Metadata, file = "EPFU2025Metadata.tsv")
+write_tsv(Bat_results, file = "EPFU2025BatResults.tsv")
+write_tsv(Results_Cleaned, file = "EPFU2025Cleaned_Results.tsv")
+write_tsv(Primary_TC_results, file = "EPFU2025Primary_TC.tsv")
+write_tsv(Basal_TC_results, file = "EPFU2025Basal_TC.tsv")
+write_tsv(Secondary_TC_results, file = "EPFU2025Secondary_TC.tsv")
+
+```
 
 
