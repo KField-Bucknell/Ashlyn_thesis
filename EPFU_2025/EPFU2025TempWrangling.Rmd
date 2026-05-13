@@ -607,10 +607,14 @@ APS60156 <- final_results |>
   filter(Bat_ID == "APS60156_boost")
 APS60156$Bat_ID <- c("APS60156")
 
-renaming_results <- final_results |> 
-  filter(!Bat_ID %in% c ("APS60156_boost", "APS60123_boost", "APS60115_boost", "APS60113_boost", "APS60088_boost", "APS60081_boost", "APS60079_boost", "APS36057_boost", "APS36010_boost", "APS36007_boost"))
+APS36106 <- final_results |> 
+  filter(Bat_ID == "APS36106_boost")
+APS36106$Bat_ID <- c("APS36106")
 
-Bat_results_met <- bind_rows(renaming_results, APS36007, APS36010, APS36057, APS60079, APS60081, APS60088, APS60113, APS60115, APS60123, APS60156)
+renaming_results <- final_results |> 
+  filter(!Bat_ID %in% c ("APS60156_boost", "APS60123_boost", "APS60115_boost", "APS60113_boost", "APS60088_boost", "APS60081_boost", "APS60079_boost", "APS36057_boost", "APS36010_boost", "APS36007_boost", "APS36106_boost"))
+
+Bat_results_met <- bind_rows(renaming_results, APS36007, APS36010, APS36057, APS60079, APS60081, APS60088, APS60113, APS60115, APS60123, APS60156, APS36106)
 ```
 
 
@@ -858,12 +862,6 @@ I think I have all the data wrangling down so I am going to export some tsv with
 
 Okay, now I am going to remove the days when we handled the bats so I can have some clean circadian rhythm data
 ```{r}
-chunk1 <- interval(as.POSIXct("2023-01-01 02:00:00"), as.POSIXct("2023-01-01 04:00:00"))
-chunk2 <- interval(as.POSIXct("2023-01-01 07:00:00"), as.POSIXct("2023-01-01 08:00:00"))
-
-# Filter out anything within those intervals
-df_clean <- df %>%
-  filter(!(time %within% chunk1 | time %within% chunk2))
 
 GP_1_cleaned <- all_results_met |> 
   filter(Group == "GP 1") |> 
