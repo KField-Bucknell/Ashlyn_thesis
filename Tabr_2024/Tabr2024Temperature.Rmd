@@ -40,7 +40,7 @@ Then I will plot the pre- and post- boost data for each individual.
 ## Metadata
 
 ```{r}
-Metadata <- read_excel("24TABR_ibuttons.xlsx", 
+Metadata <- read_excel("24TABR_ibuttons.xlsx", sheet = "Sheet1", 
     range = "A1:J51", na = "NA") |> 
   mutate(Trim_Date = ymd(Trim_Date)) |> 
   mutate(Removal_Date = ymd(Removal_Date))

@@ -617,7 +617,6 @@ renaming_results <- final_results |>
 Bat_results_met <- bind_rows(renaming_results, APS36007, APS36010, APS36057, APS60079, APS60081, APS60088, APS60113, APS60115, APS60123, APS60156, APS36106)
 ```
 
-
 ## Ambient Temp
 I do not have ambient data from the flight cage, but I do have ambient data and relative humidity from the thermal challenges. There were two sensor pushes for each thermal challenge. I am going to take the average of the two. 
 
@@ -776,6 +775,22 @@ Basal_TC_results <- working_Basal_results |>
   mutate(deltaT = Temperature - avg_temp )
 ```
 
+**** Come back to this later ******
+```{r}
+
+#basal_tc  <- Basal_TC_results%>%
+#  dplyr::filter(Bat_ID %in% batnames) %>%
+#  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+#  geom_line() +
+#  facet_grid()
+#  ylim(0, 50) +
+#  theme_minimal() +
+#  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+#
+## Convert to interactive
+#ggplotly(ref_cal_2)
+
+```
 ### Shifting Data
 
 We had two cohorts of bats that followed the exact same timeline but were treated on different days of the week. This was done to limit handling time of bats at one time. The date is not very interesting to me, so I want to shift them so they all fall on the same project date.
@@ -897,6 +912,94 @@ checking <- Results_Cleaned%>%
 # Convert to interactive
 ggplotly(checking)
 
+```
+
+## Experiment Day Labeling
+
+Looks incredible ugly but we get the point. I want to add a column that says what each day of the experiment is (Primary immunization, basal TC, etc.). I will also add another column that is handled vs not handled, and another that is experiment day (D21, D22)
+
+```{r}
+Bat_results_met$time_aligned[Bat_results_met$Group == "GP 2"] <- Bat_results_met$time_aligned[Bat_results_met$Group == "GP 2"] - lubridate::days(3)
+
+Results_Analysis <- all_results_met |> 
+  mutate(DateType = "")
+
+Results_Analysis <- Results_Analysis|> 
+  mutate(DateType = case_when(
+      Treatment == "NoCo" & NumberDate %in% c(1757253601:1757339401) ~ "D-1",
+      Treatment == "NoCo" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
+      Treatment == "NoCo" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
+      Treatment == "NoCo" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
+      Treatment == "NoCo" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
+      Treatment == "NoCo" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
+      Treatment == "NoCo" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
+      Treatment == "NoCo" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
+      Treatment == "NoCo" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
+      Treatment == "NoCo" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Treatment == "NoCo" ~ "None", 
+      TRUE ~ DateType))
+
+Results_Analysis <- Results_Analysis|> 
+  mutate(DateType = case_when(
+      Treatment == "SHAM" & NumberDate %in% c(1757253601:1757339401) ~ "D-1",
+      Treatment == "SHAM" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
+      Treatment == "SHAM" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
+      Treatment == "SHAM" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
+      Treatment == "SHAM" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
+      Treatment == "SHAM" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
+      Treatment == "SHAM" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
+      Treatment == "SHAM" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
+      Treatment == "SHAM" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
+      Treatment == "SHAM" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Treatment == "SHAM" ~ "None", 
+      TRUE ~ DateType))
+
+Results_Analysis <- Results_Analysis|> 
+  mutate(DateType = case_when(
+      Treatment == "Dual" & NumberDate %in% c(1757253601:1757339401) ~ "D-1",
+      Treatment == "Dual" & NumberDate %in% c(1757340001:1757425801) ~ "Primary TC",
+      Treatment == "Dual" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
+      Treatment == "Dual" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
+      Treatment == "Dual" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
+      Treatment == "Dual" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary TC",
+      Treatment == "Dual" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
+      Treatment == "Dual" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
+      Treatment == "Dual" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
+      Treatment == "Dual" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Treatment == "Dual" ~ "None", 
+      TRUE ~ DateType))
+
+Results_Analysis <- Results_Analysis|> 
+  mutate(DateType = case_when(
+      Treatment == "Secondary" & NumberDate %in% c(1757253601:1757339401) ~ "D-1",
+      Treatment == "Secondary" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
+      Treatment == "Secondary" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
+      Treatment == "Secondary" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
+      Treatment == "Secondary" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
+      Treatment == "Secondary" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary TC",
+      Treatment == "Secondary" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
+      Treatment == "Secondary" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
+      Treatment == "Secondary" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
+      Treatment == "Secondary" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Treatment == "Secondary" ~ "None", 
+      TRUE ~ DateType))
+
+Results_Analysis <- Results_Analysis|> 
+  mutate(DateType = case_when(
+      Treatment %in% c("Secondary", "Dual", "Primary") & Group == "GP 1" & NumberDate %in% c(1756908001:1756993801) ~ "Basal TC-1",
+      Treatment %in% c("Secondary", "Dual", "Primary") & Group == "GP 1" & NumberDate %in% c(1756994401:1757080201) ~ "Basal TC",
+      Treatment %in% c("Secondary", "Dual", "Primary") & Group == "GP 1" & NumberDate %in% c(1757080801:1757166601) ~ "Basal TC + 1",
+      TRUE ~ DateType))
+
+Results_Analysis <- Results_Analysis|> 
+  mutate(DateType = case_when(
+      Treatment %in% c("Secondary", "Dual", "Primary") & Group == "GP 2" & NumberDate %in% c(1756648801:1756734601) ~ "Basal TC-1",
+      Treatment %in% c("Secondary", "Dual", "Primary") & Group == "GP 2" & NumberDate %in% c(1756735201:1756821001) ~ "Basal TC",
+      Treatment %in% c("Secondary", "Dual", "Primary") & Group == "GP 2" & NumberDate %in% c(1756821601:1756907401) ~ "Basal TC + 1",
+      TRUE ~ DateType))
+
+Results_Analysis <- Results_Analysis |> 
+  mutate(Handled = if_else(DateType == "None", "No", "Yes"))
 ```
 
 

@@ -54,29 +54,79 @@ I am going to load in my data and metadata for both immunizations
 Primary_Results <- read.delim("EPFU2025PrimaryTemperature.tsv", # read in primary results
      na = "NA")
 
-#Primary_Met <- read.delim("MOCO2025Primary_Met.tsv", # read in primary metadata
- #    na = "NA")
-
 Secondary_Results <- read.delim("EPFU2025SecondaryTemperature.tsv", # read in secondary results 
      na = "NA")
 
-#Secondary_Met <- read.delim("MOCO2025Secondary_Met.tsv", # read in secondary metadata
-  #   na = "NA")
+Bat_Results <- read.delim("EPFU2025BatResults.tsv", # read in secondary results 
+     na = "NA")
+
+Clean_Results <- read.delim("EPFU2025Cleaned_Results.tsv", # read in secondary results 
+     na = "NA")
+
+Basal_TC <- read.delim("EPFU2025Basal_TC.tsv", # read in secondary results 
+     na = "NA")
+
+Primary_TC <- read.delim("EPFU2025Primary_TC.tsv", # read in secondary results 
+     na = "NA")
+
+Secondary_TC <- read.delim("EPFU2025Secondary_TC.tsv", # read in secondary results 
+     na = "NA")
 ```
 
 Make values for bat names
 ```{r}
+BasalNames <- unique(Basal_TC$Bat_ID)
 SecondaryBatNames <- unique(Secondary_Results$Bat_ID)
 PrimaryBatNames <- unique(Primary_Results$Bat_ID)
+```
+
+## Basal Temp
+
+```{r}
+Metadata <- Metadata |> 
+  mutate(id = Bat_ID) |> 
+  mutate(id = as.character(id))
+
+Basal_TC <- Basal_TC |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
+
+Basal_met <- data.table::data.table(Metadata, key = "id")
+Basal_TC2 <- data.table::data.table(Basal_TC, key = "id")
+
+ basal_behavr <- behavr(Basal_TC2, Basal_met)
+```
+
+```{r}
+basal_behavr |>
+  ggetho(aes(x = t, y = Temperature, colour = Treatment))+
+  #geom_rect(data = shaded, 
+          #  aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+           #  alpha = 0.3, inherit.aes = FALSE) +
+    stat_pop_etho() +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,
+    l_duration = 43200, 
+    ld_colours = c( "white", "black")) +
+  facet_grid(Treatment ~ .) +
+#  scale_x_continuous(
+#    name = "Date/time",
+#    breaks = seq(1747767600, max(primary_behavr$t), by = 86400), 
+#    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, #%H:%M"),
+#    expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+    labs(y = "Temp (C)")-> EPFU_Basal
+
+ggsave("EPFU_Basal.jpeg", plot = EPFU_Basal, device = jpeg(), width = 12, height = 6.67)
 ```
 
 
 ##Primary Temp
 
 ```{r}
- Metadata <- Metadata |> 
-  mutate(id = Bat_ID) |> 
-  mutate(id = as.character(id))
+ 
 
 Primary_Results <- Primary_Results |> 
   mutate(id = Bat_ID) |> 
@@ -86,7 +136,7 @@ Primary_Results <- Primary_Results |>
  Primary_met <- data.table::data.table(Metadata, key = "id")
  Primary_results2 <- data.table::data.table(Primary_Results, key = "id")
 
- primary_behavr <- behavr(Primary_results2, Primary_met2)
+ primary_behavr <- behavr(Primary_results2, Primary_met)
  summary(primary_behavr)
  
  glimpse(primary_behavr)
@@ -94,76 +144,88 @@ Primary_Results <- Primary_Results |>
 ```
 
 ### Primary Behavr 
-
+#### NOTE FOR ASH 
+   I need to update this code.. I want to change the x axis to show experiment day instead of date/time. I also want to reorder them to sham is on the bottom
 ```{r}
  
-shaded <- data.frame(xmin = c(1748001900 , 1748277000), #adds shaded regions for both the basal and primary thermal challenges
-                     xmax = c(1748049000, 1748306400),
-                     label = c("Basal TC", "Primary TC"))
+#shaded <- data.frame(xmin = 1748001900 , #adds shaded regions for both the basal and primary thermal #challenges
+#                     xmax = 1748049000,
+#                     label = c("Basal TC", "Primary TC"))
                               
   primary_behavr |>
-  ggetho(aes(x = t, y = Temperature, colour = id))+
-  geom_rect(data = shaded, 
-            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
-             alpha = 0.3, inherit.aes = FALSE) +
+  ggetho(aes(x = t, y = Temperature, colour = Treatment))+
+  #geom_rect(data = shaded, 
+          #  aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+           #  alpha = 0.3, inherit.aes = FALSE) +
     stat_pop_etho() +
   stat_ld_annotations(
     period = 86400,
     phase = 25200,
     l_duration = 43200, 
     ld_colours = c( "white", "black")) +
-  facet_grid(id ~ .) +
+  facet_grid(Treatment ~ .) +
+  scale_x_continuous(
+    name = "Experiment Day",
+    # Set breaks every 24 hours (86400 seconds)
+    breaks = seq(1747767600, max(primary_behavr$t), by = 86400), 
+    # Calculate the day number relative to your start timestamp
+    labels = function(x) {
+      day_num <- (as.numeric(x) - 1747767600)
+      paste("Day", round(day_num))},
+      expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+    labs(x = "Experiment Day", y = "Temp (°C)")-> EPFU_Primary 
+#    name = "Date/time",
+#    breaks = seq(1747767600, max(primary_behavr$t), by = 86400), 
+#    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, #%H:%M"),
+    #scale_x_date(labels = function(x), paste("Day", as.numeric(x - 1757289601))) +
+   
+
+ggsave("EPFU_Primary.jpeg", plot = EPFU_Primary, device = jpeg(), width = 12, height = 6.67)
+
+```
+It is plotting and looks fine, but I am getting some errors. Need Ken to look at it. I also want to add shaded regions that show when they are being handled. But I actually might not do this because these bats are handled every single night for feeding.. ugh stupid MOCO
+
+```{r}
+ primary_behavr |>
+  subset(Treatment %in% c("NOCO", "Secondary")) |> 
+  transform_meta
+  ggetho(aes(x = t, y = Temperature, colour = Treatment))+
+  #geom_rect(data = shaded, 
+          #  aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+           #  alpha = 0.3, inherit.aes = FALSE) +
+    stat_pop_etho() +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,
+    l_duration = 43200, 
+    ld_colours = c( "white", "black")) +
+  facet_grid(Treatment ~ .) +
   scale_x_continuous(
     name = "Date/time",
     breaks = seq(1747767600, max(primary_behavr$t), by = 86400), 
     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
     expand = c(0,0)) +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-    labs(y = "Temp (C)")-> MOCO_Primary
- 
-  #i removed the facet but I hate it lol
- primary_behavr |>
-  ggetho(aes(x = t, y = Temperature, colour = id))+
-  geom_rect(data = shaded, 
-            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
-             alpha = 0.3, inherit.aes = FALSE) +
-    stat_pop_etho() +
-  stat_ld_annotations(
-    period = 86400,
-    phase = 25200,
-    l_duration = 43200, 
-    ld_colours = c( "white", "black")) +
-  scale_x_continuous(
-    name = "Date/time",
-    breaks = seq(1747767600, max(primary_behavr$t), by = 86400), 
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
-    expand = c(0,0)) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) -> MOCO_Primary_nofacet
-  
-ggsave("MOCO_Primary.jpeg", plot = MOCO_Primary, device = jpeg(), width = 12, height = 6.67)
+    labs(y = "Temp (C)")-> EPFU_Primary
 
-ggsave("MOCO_Primary_nofacet.jpeg", plot = MOCO_Primary_nofacet, device = jpeg(), width = 12, height = 6.67)
-
+ggsave("EPFU_Primary.jpeg", plot = EPFU_Primary, device = jpeg(), width = 12, height = 6.67)
 ```
-It is plotting and looks fine, but I am getting some errors. Need Ken to look at it. I also want to add shaded regions that show when they are being handled. But I actually might not do this because these bats are handled every single night for feeding.. ugh stupid MOCO
+
 
 ## Behavr Analysis
 
 ```{r}
-
- Secondary_Met <- Secondary_Met |> 
-  mutate(id = Bat_ID) |> 
-  mutate(id = as.character(id))
 
 Secondary_Results <- Secondary_Results |> 
   mutate(id = Bat_ID) |> 
   mutate(t = NumberDate) |> 
   mutate(id = as.character(id))
 
- Secondary_met2 <- data.table::data.table(Secondary_Met, key = "id")
+ Secondary_met <- data.table::data.table(Metadata, key = "id")
  Secondary_results2 <- data.table::data.table(Secondary_Results, key = "id")
 
- secondary_behavr <- behavr(Secondary_results2, Secondary_met2)
+ secondary_behavr <- behavr(Secondary_results2, Secondary_met)
  summary(secondary_behavr)
 ```
 
@@ -178,7 +240,7 @@ secondary_etho  <- ggetho(secondary_behavr, aes(x=t, y=id, z=Temperature)) + sta
   labs(fill = "Temp (C)",
        y = "Bat ID")
 
-ggsave("MOCO_Sec_Etho.jpeg", plot = secondary_etho, device = jpeg(), width = 12, height = 6.67)
+ggsave("EPFU_Sec_Etho.jpeg", plot = secondary_etho, device = jpeg(), width = 12, height = 6.67)
 ```
 
 ```{r}
@@ -201,18 +263,18 @@ secondary_behavr |>
     breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
     expand = c(0,0)) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) -> MOCO_Secondary
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) -> EPFU_Secondary
  
-ggsave("MOCO_Secondary.jpeg", plot = MOCO_Secondary, device = jpeg(), width = 12, height = 6.67)
+ggsave("EPFU_Secondary.jpeg", plot = EPFU_Secondary, device = jpeg(), width = 12, height = 6.67)
 
 ```
 
 ```{r, warning=FALSE}
 # i don't think this is working
-ggetho(primary_behavr, aes(y= Temperature, colour=id), time_wrap = 86400) +
+ggetho(primary_behavr, aes(y= Temperature, colour= Treatment), time_wrap = 86400) +
       stat_pop_etho() +
       stat_ld_annotations() +
-      facet_grid(id ~ .) +
+     # facet_grid(id ~ .) +
       scale_y_continuous(name= "Temperature")
 ```
 
