@@ -151,6 +151,26 @@ lapply(batnames, plotly_fun)
 The data loads in well. There are a lot of values that are incorrect (logger never exposed to these temps). Will drop them later.
 Will get in to the details about which ones need to be trimmed in a bit. 
 
+```{r}
+# here i am just checking the boost data all in one plot to see what it looks like
+checking_boost_cal <- allbatresults |> 
+  left_join(Metadata, join_by(Bat_ID)) |> # joining with metadata
+  filter(`Date Attached` >= '2025-09-29') # filter by loggers attached for second immunization
+
+checking <- allbatresults%>%
+  dplyr::filter(Bat_ID %in% batnames) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(0, 50) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+
+# Convert to interactive
+ggplotly(checking)
+
+```
+
+
 ## Calibration
 Before I go any further, I need to calibrate the data. I am using a 2 point calibration from the low and high calibration temps. The formula I am using is CorrectedValue = (((RawValue – RawLow) * ReferenceRange) / RawRange) + ReferenceLow. Before I do that, I need to remove the incorrect values that are over 45 and under 0. Since I know these are incorrect readings and I would want them removed from ALL loggers, I am just going to apply it to the whole dataset.
 
@@ -901,7 +921,7 @@ Okay, I just want to make sure this worked correctly so I am going to plot it al
 ```{r}
 final_names <- unique(Bat_results$Bat_ID)
 
-checking <- Results_Cleaned%>%
+check <- Results_Cleaned%>%
   dplyr::filter(Bat_ID %in% batnames) %>%
   ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
   geom_line() +
@@ -910,7 +930,7 @@ checking <- Results_Cleaned%>%
   labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
 
 # Convert to interactive
-ggplotly(checking)
+ggplotly(check)
 
 ```
 
@@ -1001,7 +1021,23 @@ Results_Analysis <- Results_Analysis|>
 Results_Analysis <- Results_Analysis |> 
   mutate(Handled = if_else(DateType == "None", "No", "Yes"))
 ```
+Okay got that done! Now I want to add another column that is experiment date. 
 
+```{r}
+day_0_anchor <- ymd_hms("2025-09-08 14:00:01") 
+
+Results_Analysis <- Results_Analysis |> 
+  mutate(Days_From_Anchor = as.numeric(difftime(DateTime, day_0_anchor, units = "days")),
+    # 4. Use floor() so that Day 0 spans from Sept 9 2pm to Sept 10 1:59pm
+    Day_Number = floor(Days_From_Anchor),
+      # 5. Format it to look like "D0", "D1", "D-1", etc.
+    ExperimentDay = case_when(
+      Day_Number == 0  ~ "D0",
+      Day_Number > 0   ~ paste0("D", Day_Number),
+      Day_Number < 0   ~ paste0("D", Day_Number) # Automatically handles the negative sign (e.g., "D-1")
+    ))
+```
+Okay, I'll end my code here for now.
 
 ```{r}
 write_tsv(Bat_Secondary, file = "EPFU2025SecondaryTemperature.tsv")
@@ -1012,6 +1048,8 @@ write_tsv(Results_Cleaned, file = "EPFU2025Cleaned_Results.tsv")
 write_tsv(Primary_TC_results, file = "EPFU2025Primary_TC.tsv")
 write_tsv(Basal_TC_results, file = "EPFU2025Basal_TC.tsv")
 write_tsv(Secondary_TC_results, file = "EPFU2025Secondary_TC.tsv")
+write_tsv(Results_Analysis, file = "EPFU2025Results_Analysis.tsv")
+
 
 ```
 
