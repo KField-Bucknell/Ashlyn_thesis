@@ -977,11 +977,11 @@ Results_Analysis <- Results_Analysis|>
 Results_Analysis <- Results_Analysis|> 
   mutate(DateType = case_when(
       Treatment == "Dual" & NumberDate %in% c(1757253601:1757339401) ~ "D-1",
-      Treatment == "Dual" & NumberDate %in% c(1757340001:1757425801) ~ "Primary TC",
+      Treatment == "Dual" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
       Treatment == "Dual" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
       Treatment == "Dual" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
       Treatment == "Dual" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
-      Treatment == "Dual" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary TC",
+      Treatment == "Dual" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
       Treatment == "Dual" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
       Treatment == "Dual" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
       Treatment == "Dual" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
@@ -991,12 +991,27 @@ Results_Analysis <- Results_Analysis|>
 
 Results_Analysis <- Results_Analysis|> 
   mutate(DateType = case_when(
+      Treatment == "Primary" & NumberDate %in% c(1757253601:1757339401) ~ "D-1",
+      Treatment == "Primary" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
+      Treatment == "Primary" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
+      Treatment == "Primary" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
+      Treatment == "Primary" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
+      Treatment == "Primary" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
+      Treatment == "Primary" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
+      Treatment == "Primary" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
+      Treatment == "Primary" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
+      Treatment == "Primary" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Treatment == "Primary" ~ "None", 
+      TRUE ~ DateType))
+
+Results_Analysis <- Results_Analysis|> 
+  mutate(DateType = case_when(
       Treatment == "Secondary" & NumberDate %in% c(1757253601:1757339401) ~ "D-1",
       Treatment == "Secondary" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
       Treatment == "Secondary" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
       Treatment == "Secondary" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
       Treatment == "Secondary" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
-      Treatment == "Secondary" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary TC",
+      Treatment == "Secondary" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
       Treatment == "Secondary" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
       Treatment == "Secondary" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
       Treatment == "Secondary" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
@@ -1036,6 +1051,20 @@ Results_Analysis <- Results_Analysis |>
       Day_Number > 0   ~ paste0("D", Day_Number),
       Day_Number < 0   ~ paste0("D", Day_Number) # Automatically handles the negative sign (e.g., "D-1")
     ))
+Results_Analysis <- Results_Analysis |> 
+  mutate(Cage = case_when(
+    Treatment %in% c("SHAM", "NoCo") ~ "None",
+    Treatment %in% c("Dual", "Primary") & DateType == "Primary TC" & Group == "GP 1" ~ "D+P1",
+    Treatment %in% c("Dual", "Primary") & DateType == "Primary TC" & Group == "GP 2" ~ "D+P2",
+    Treatment %in% c("Dual", "Secondary") & DateType == "Secondary TC" & Group == "GP 1" ~ "D+S1",
+    Treatment %in% c("Dual", "Secondary") & DateType == "Secondary TC" & Group == "GP 2" ~ "D+S2",
+    Treatment %in% c("Dual") & DateType == "Basal TC" ~ "Dual",
+    Treatment %in% c("Primary") & DateType == "Basal TC" ~ "Primary",
+    Treatment %in% c("Secondary") & DateType == "Basal TC" ~ "Secondary",
+    TRUE ~ "None"))
+
+Results <- Results_Analysis |> 
+  select(Bat_ID, DateTime, NumberDate, Temperature, DateType,Treatment, Group, Sex, Handled, ExperimentDay, Cage)
 ```
 Okay, I'll end my code here for now.
 
@@ -1048,7 +1077,7 @@ write_tsv(Results_Cleaned, file = "EPFU2025Cleaned_Results.tsv")
 write_tsv(Primary_TC_results, file = "EPFU2025Primary_TC.tsv")
 write_tsv(Basal_TC_results, file = "EPFU2025Basal_TC.tsv")
 write_tsv(Secondary_TC_results, file = "EPFU2025Secondary_TC.tsv")
-write_tsv(Results_Analysis, file = "EPFU2025Results_Analysis.tsv")
+write_tsv(Results, file = "EPFU2025Results_Analysis.tsv")
 
 
 ```

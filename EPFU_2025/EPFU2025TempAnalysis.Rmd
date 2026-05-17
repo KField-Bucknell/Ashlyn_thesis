@@ -71,6 +71,9 @@ Primary_TC <- read.delim("EPFU2025Primary_TC.tsv", # read in secondary results
 
 Secondary_TC <- read.delim("EPFU2025Secondary_TC.tsv", # read in secondary results 
      na = "NA")
+
+Results <- read.delim("EPFU2025Results_Analysis.tsv",
+                      na = "NA")
 ```
 
 Make values for bat names
