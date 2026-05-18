@@ -571,7 +571,8 @@ final_results <- final_results |>
   # 4. Fill the gaps (only if 1-3 consecutive points are missing)
   mutate(fixed_temp = na.approx(Temperature, maxgap = 3, na.rm = FALSE)) |> 
   # 5. Clean up grouping
-  ungroup()
+  ungroup() |> 
+  as.data.table()
 ```
 
 
