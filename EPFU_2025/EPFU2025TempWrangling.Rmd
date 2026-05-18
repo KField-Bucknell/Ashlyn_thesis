@@ -1079,6 +1079,25 @@ Results_Analysis <- Results_Analysis |>
 Results <- Results_Analysis |> 
   select(Bat_ID, DateTime, NumberDate, Temperature, DateType,Treatment, Group, Sex, Handled, ExperimentDay, Cage)
 ```
+
+## Weight Data
+
+```{r}
+Bleed_Data <- read_excel("EPFU 2025 Bleeding.xlsx", # read in bleeding data
+    range = "A1:N298", na = "NA")
+
+glimpse(Bleed_Data)
+
+# i will eventually need to fix the format of dates, but thats a later ashlyn problem
+
+Bleed_Data <- Bleed_Data |> 
+  rename(Bat_ID = "Pittag") |> 
+  rename(ExperimentDay = "Experiment Day")
+
+Results <- Results |> 
+  left_join(Bleed_Data |> select(Bat_ID, ExperimentDay, Weight), join_by(Bat_ID,ExperimentDay))
+```
+
 Okay, I'll end my code here for now.
 
 ```{r}
@@ -1091,7 +1110,6 @@ write_tsv(Primary_TC_results, file = "EPFU2025Primary_TC.tsv")
 write_tsv(Basal_TC_results, file = "EPFU2025Basal_TC.tsv")
 write_tsv(Secondary_TC_results, file = "EPFU2025Secondary_TC.tsv")
 write_tsv(Results, file = "EPFU2025Results_Analysis.tsv")
-
 
 ```
 

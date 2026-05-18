@@ -159,7 +159,6 @@ ggsave("EPFU_Basal.jpeg", plot = EPFU_Basal, device = jpeg(), width = 12, height
 ##Primary Temp
 
 ```{r}
- 
 
 Primary_Results <- Primary_Results |> 
   mutate(id = Bat_ID) |> 
