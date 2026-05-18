@@ -81,7 +81,37 @@ Make values for bat names
 BasalNames <- unique(Basal_TC$Bat_ID)
 SecondaryBatNames <- unique(Secondary_Results$Bat_ID)
 PrimaryBatNames <- unique(Primary_Results$Bat_ID)
+ResultsNames <- unique(Results$Bat_ID)
 ```
+
+## Average and running temp
+
+```{r}
+Results <- Results |> 
+  group_by(Bat_ID) |> 
+  mutate(Temp_norm = mean(Temperature[DateType == "None" &
+                                      Temperature > 31], na.rm = TRUE)) |> 
+  ungroup()
+
+Results <- Results |> 
+  # 1. Calculate the difference for every time point
+  mutate(Temp_Diff = Temperature - Temp_norm) |> 
+    # 2. Sort chronologically by bat and time to ensure cumsum adds in the right order
+  # (Replace 'DateTime' with the actual name of your timestamp column)
+  arrange(Bat_ID, NumberDate) |> 
+    # 3. Group by the Bat and your existing Experiment Day column
+  # (Replace 'Exp_Day' with the actual name of your D-5, D0, D1 column)
+  group_by(Bat_ID, ExperimentDay) |> 
+    # 4. Calculate the running sum. Because of the group_by, 
+  # it will automatically reset to 0 at the start of each experiment day.
+  mutate(Running_Sum_Diff = cumsum(Temp_Diff)) |> 
+    # 5. Clean up grouping
+  ungroup()
+
+Analysis_results <- Results |> 
+  filter(grepl("13:50", DateTime))
+```
+
 
 ## Basal Temp
 
