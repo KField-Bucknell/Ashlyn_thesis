@@ -202,6 +202,17 @@ ggplotly(p)
 clean_results <- allbatresults |> 
   mutate(Temperature = ifelse(Temperature < 0 | Temperature > 50, NA, Temperature)) # changes temps over 50 and under 0 to na
 
+clean_results <- clean_results |> 
+  # 2. Sort chronologically by bat and time
+  arrange(Bat_ID, DateTime) |> 
+  # 3. Group by Bat so you don't interpolate between different animals
+  group_by(Bat_ID) |> 
+  # 4. Fill the gaps (only if 1-3 consecutive points are missing)
+  mutate(fixed_temp = na.approx(Temperature, maxgap = 3, na.rm = FALSE)) |> 
+  # 5. Clean up grouping
+  ungroup() |> 
+  as.data.table()
+
 summary(as.factor(allbatresults$Bat_ID)) # display all bat names and their counts use to verify they ran correctly
 summary(as.factor(clean_results$Bat_ID)) # comparing counts between the two
 ```
@@ -215,18 +226,19 @@ Clean_results_met <- clean_results %>%
 
 Cal_1_results <- Clean_results_met |>  # extracting second calibration results
   filter(Calibration == 1) |> 
-  select(Bat_ID, DateTime, Unit, Temperature, NumberDate)
+  select(Bat_ID, DateTime, Unit, fixed_temp, NumberDate) |> 
+  rename(Temperature = "fixed_temp")
 
 Cal_1_results <- Cal_1_results |> 
   group_by(Bat_ID) |> 
   mutate(lowT = mean(Temperature[NumberDate >= 1756687201 & 
-                  DateTime <= 1756692601 ])) |> 
+                  DateTime <= 1756692601 ], na.rm = TRUE)) |> 
   ungroup() #taking the average temperature during the low calibration for each logger
 
 Cal_1_results <- Cal_1_results |> 
   group_by(Bat_ID) |> 
   mutate(highT = mean(Temperature[NumberDate >= 1756738201 & 
-                                    NumberDate <= 1756801801])) |> 
+                     NumberDate <= 1756801801], na.rm = TRUE)) |> 
   ungroup() #taking the average temperature during the high calibration for each logger
 
 Cal_1_results <- Cal_1_results |> 
@@ -269,18 +281,19 @@ Okay, so for this one, I am going to take the three loggers that went through bo
 ```{r}
 Cal_2_results <- Clean_results_met |> # extracting second calibration results
   filter(Calibration == 2) |> 
-  select(Bat_ID, DateTime, Unit, Temperature, NumberDate)
+  select(Bat_ID, DateTime, Unit, fixed_temp, NumberDate) |> 
+  rename(Temperature = "fixed_temp")
 
 Cal_2_results <- Cal_2_results |> 
   group_by(Bat_ID) |> 
   mutate(lowT = mean(Temperature[NumberDate >= 1759106401 & 
-                  NumberDate <= 1759112401])) |> 
+                  NumberDate <= 1759112401], na.rm = TRUE)) |> 
   ungroup() #taking the average temperature during the low calibration for each logger
 
 Cal_2_results <- Cal_2_results |> 
   group_by(Bat_ID) |> 
   mutate(highT = mean(Temperature[NumberDate >= 1759125601 & 
-                  NumberDate <= 1759130401])) |> 
+                  NumberDate <= 1759130401], na.rm = TRUE)) |> 
   ungroup() #taking the average temperature during the high calibration for each logger
 
 Cal_2_results <- Cal_2_results |> 
@@ -348,7 +361,6 @@ cal_data <- bind_rows(Cal_1_results, Cal_2_results) |>
   rename("Temperature" = "corrected")
 
 ```
-
 
 ## Left and Right Trimming the data
 
@@ -563,6 +575,21 @@ final_results <- Trimmed |>
 ```
 
 ```{r}
+
+yyyy <- Trimmed %>%
+  dplyr::filter(Bat_ID %in% batnames) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(0, 50) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+
+# Convert to interactive
+ggplotly(yyyy)
+
+```
+
+```{r}
 final_results <- final_results |> 
   # 2. Sort chronologically by bat and time
   arrange(Bat_ID, DateTime) |> 
@@ -574,7 +601,6 @@ final_results <- final_results |>
   ungroup() |> 
   as.data.table()
 ```
-
 
 ```{r}
 plotly_fun5 <- function(arg1) {
@@ -1096,6 +1122,21 @@ Bleed_Data <- Bleed_Data |>
 
 Results <- Results |> 
   left_join(Bleed_Data |> select(Bat_ID, ExperimentDay, Weight), join_by(Bat_ID,ExperimentDay))
+```
+
+```{r}
+
+final_check <- Results%>%
+  dplyr::filter(Bat_ID %in% final_names) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(10, 45) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+
+# Convert to interactive
+ggplotly(final_check)
+
 ```
 
 Okay, I'll end my code here for now.

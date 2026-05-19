@@ -109,9 +109,9 @@ Results <- Results |>
   ungroup()
 
 Analysis_results <- Results |> 
-  filter(grepl("13:50", DateTime))
+  filter(grepl("13:50", DateTime)) |> 
+  rename(AUC = "Running_Sum_Diff")
 ```
-
 
 ## Basal Temp
 
