@@ -104,14 +104,86 @@ Results <- Results |>
   group_by(Bat_ID, ExperimentDay) |> 
     # 4. Calculate the running sum. Because of the group_by, 
   # it will automatically reset to 0 at the start of each experiment day.
-  mutate(Running_Sum_Diff = cumsum(Temp_Diff)) |> 
+  mutate(running_AUC = cumsum(ifelse(is.na(Temp_Diff), 0, Temp_Diff)),
+    Total_AUC = sum(Temp_Diff, na.rm = TRUE),
+         valid_counts = sum(!is.na(Temp_Diff))) |> 
     # 5. Clean up grouping
   ungroup()
 
 Analysis_results <- Results |> 
   filter(grepl("13:50", DateTime)) |> 
-  rename(AUC = "Running_Sum_Diff")
+  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group, Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage, )
 ```
+
+## First models
+
+```{r}
+handled_model <- glm(Total_AUC ~ Bat_ID + Handled, data = Analysis_results)
+summary(handled_model)
+```
+Looks like handling day matters for some bats more than others. 
+
+I am going to take AUC days bats were not handled and compare them to primary +3 and secondary +3. If there is no difference, I can group these days as non-handled 
+
+```{r}
+handling_check <- Analysis_results |> 
+  filter(DateType %in% c("None", "Primary + 3", "Secondary + 3")) |> 
+  mutate(DateType = factor(DateType),
+    DateType = relevel(DateType, ref = "None"))
+
+handle_check <- glm(Total_AUC ~ Bat_ID + DateType, 
+                 data = handling_check, 
+                 family = gaussian(link = "identity"))
+
+summary(handle_check)
+```
+Hmm again, depends on the bat, but primary +3 is significantly different from non-handling days but secondary + 3 is not significantly different. I was considering grouping these days into "None" but I am going to keep it separate. 
+
+```{r}
+treatment_glm <- glm(Total_AUC ~ Treatment, data = Analysis_results)
+summary(treatment_glm)
+```
+So AUC for NOCO, Primary, and Dual is not significant, but secondary and sham are significantly different. 
+
+```{r}
+treatment_days_glm <- glm(Total_AUC ~ Treatment + DateType , data = Analysis_results)
+summary(treatment_days_glm)
+```
+
+
+I want to look at AUC for bats in basal TC and factor in cage.
+```{r}
+basal_analysis <- Analysis_results |> 
+  filter(DateType == "Basal TC")
+
+basal <- glm(Total_AUC ~ Cage, data = basal_analysis)
+summary(basal)
+```
+So it looks like cage did not effect AUC
+
+
+```{r}
+BP_TC_analysis <- Analysis_results |> 
+  filter(DateType %in% c("Basal TC", "Primary") & Treatment %in% c("Dual", "Primary"))
+
+BP_Analysis <- glm(Total_AUC ~ DateType ,data = BP_TC_analysis)
+summary(BP_Analysis)
+```
+Okay! Clearly a difference in AUC when comparing basal TC to primary TC!
+
+I wanted to run a glm to see if the number of counts had an effect and it definitely does. I need to talk to Ken about how to deal with this...
+```{r}
+data_points_glm <- glm(Total_AUC ~ valid_counts , data = Analysis_results)
+summary(data_points_glm)
+```
+
+
+Looking at weight
+```{r}
+weight_glm <- glm(Total_AUC ~ Weight , data = Analysis_results)
+summary(weight_glm)
+```
+Significant but not surprising. I do need to check and see if the NAs are interfering with this. 
 
 ## Basal Temp
 
