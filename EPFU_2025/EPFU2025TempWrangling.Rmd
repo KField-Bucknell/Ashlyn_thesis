@@ -1149,7 +1149,17 @@ ggplotly(final_check)
 
 ```
 
-Okay, I'll end my code here for now.
+Okay, one last thing this time... We changed my treatment names from Secondary to CP, Primary to CS, and Dual to CP+S. I need to change these in the dataset, but I did not want to have to go through my whole code to change it so I'll just do it here. 
+
+```{r}
+Bat_Metadata$Treatment[Bat_Metadata$Treatment == "Secondary"] <- "CS"
+Bat_Metadata$Treatment[Bat_Metadata$Treatment == "Primary"] <- "CP"
+Bat_Metadata$Treatment[Bat_Metadata$Treatment == "Dual"] <- "CP+S"
+
+Results$Treatment[Results$Treatment == "Secondary"] <- "CS"
+Results$Treatment[Results$Treatment == "Primary"] <- "CP"
+Results$Treatment[Results$Treatment == "Dual"] <- "CP+S"
+```
 
 ```{r}
 write_tsv(Bat_Secondary, file = "EPFU2025SecondaryTemperature.tsv")
