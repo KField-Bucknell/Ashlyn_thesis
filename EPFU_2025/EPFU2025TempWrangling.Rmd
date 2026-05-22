@@ -1123,6 +1123,15 @@ Bleed_Data <- Bleed_Data |>
 
 Results <- Results |> 
   left_join(Bleed_Data |> select(Bat_ID, ExperimentDay, Weight), join_by(Bat_ID,ExperimentDay))
+
+Attachment_Data <- read_excel("EPFU_iButton _Attachment.xlsx", # read in bleeding data
+    range = "A1:I44", na = "NA") |> 
+  select(Bat_ID, ExperimentDay, 'post-weight') |> 
+  rename(Weight = 'post-weight')
+
+Results <- Results |> 
+  rows_patch(Attachment_Data, by = c("Bat_ID", "ExperimentDay"), unmatched = "ignore")
+
 ```
 
 ```{r}
