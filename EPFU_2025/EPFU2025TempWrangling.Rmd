@@ -546,6 +546,11 @@ Trimmed <- bind_rows(RTrimmed_Temp, RTrimming1, RTrimming2, RTrimming3, RTrimmin
 
 summary(as.factor(Trimmed$Bat_ID))
 
+#last I am going to drop APS36007 boost. The data is ALL over the place so we just can't trust these readings
+
+Trimmed <- Trimmed |> 
+  filter(!Bat_ID == 'APS36007_boost')
+
 ```
 
 Now I want to look at the data and make sure it looks right and see what else needs to be trimmed
@@ -626,10 +631,6 @@ Before I go any further, I want to rename some of my Bat Ids that have boost in 
 ```{r}
 summary(as.factor(final_results$Bat_ID))
 
-APS36007 <- final_results |> 
-  filter(Bat_ID == "APS36007_boost")
-APS36007$Bat_ID <- c("APS36007")
-
 APS36010 <- final_results |> 
   filter(Bat_ID == "APS36010_boost")
 APS36010$Bat_ID <- c("APS36010")
@@ -671,9 +672,9 @@ APS36106 <- final_results |>
 APS36106$Bat_ID <- c("APS36106")
 
 renaming_results <- final_results |> 
-  filter(!Bat_ID %in% c ("APS60156_boost", "APS60123_boost", "APS60115_boost", "APS60113_boost", "APS60088_boost", "APS60081_boost", "APS60079_boost", "APS36057_boost", "APS36010_boost", "APS36007_boost", "APS36106_boost"))
+  filter(!Bat_ID %in% c ("APS60156_boost", "APS60123_boost", "APS60115_boost", "APS60113_boost", "APS60088_boost", "APS60081_boost", "APS60079_boost", "APS36057_boost", "APS36010_boost",  "APS36106_boost"))
 
-Bat_results_met <- bind_rows(renaming_results, APS36007, APS36010, APS36057, APS60079, APS60081, APS60088, APS60113, APS60115, APS60123, APS60156, APS36106)
+Bat_results_met <- bind_rows(renaming_results, APS36010, APS36057, APS60079, APS60081, APS60088, APS60113, APS60115, APS60123, APS60156, APS36106)
 ```
 
 ## Ambient Temp
