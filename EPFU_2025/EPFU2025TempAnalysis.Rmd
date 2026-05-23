@@ -25,6 +25,11 @@ if (!require("merTools")) install.packages("merTools"); library(merTools)
 if (!require("conflicted")) install.packages("conflicted"); library(conflicted)
 if (!require("devtools")) install.packages("devtools"); library(devtools)
 if (!require("tidyverse")) install.packages("tidyverse"); library(tidyverse)
+if (!require("zoo")) install.packages("zoo"); library(zoo)
+if (!require("emmeans")) install.packages("emmeans"); library(emmeans)
+if (!require("multcomp")) install.packages("multcomp"); library(multcomp)
+
+
 conflict_prefer_all("dplyr", quiet = TRUE)
 conflicts_prefer(plotly::layout)
 conflicts_prefer(lubridate::hours)
@@ -111,8 +116,38 @@ Results <- Results |>
   ungroup()
 
 Analysis_results <- Results |> 
-  filter(grepl("13:50", DateTime)) |> 
-  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group, Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage, )
+  filter(grepl("13:50", DateTime),
+         valid_counts >= 130) |> 
+  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group, Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage ) 
+
+```
+
+Now that I have just one time point
+```{r}
+Analysis_results <- Analysis_results |> 
+  # 1. Create a temporary numeric column for correct chronological sorting
+  mutate(Day_Num = as.numeric(str_remove(ExperimentDay, "D"))) |> 
+  
+  # 2. Sort chronologically by bat and the actual numeric day
+  arrange(Bat_ID, Day_Num) |> 
+  
+  # 3. Group by Bat so you don't interpolate between different animals
+  group_by(Bat_ID) |> 
+  
+  # 4. Fill the gaps (linear interpolation)
+  mutate(Weight = na.approx(Weight, na.rm = FALSE)) |> 
+  
+  # 5. Clean up grouping and remove the temporary column
+  ungroup() |> 
+  select(-Day_Num) |> 
+  
+  # 6. Convert to data.table
+  as.data.table()
+
+Analysis_results <- Analysis_results |> 
+mutate(Treatment = fct_relevel(Treatment, "SHAM"),
+         DateType = fct_relevel(DateType, "None"), 
+       Bat_ID = fct_relevel(Bat_ID, "APS60113"))
 ```
 
 ## First models
@@ -121,7 +156,7 @@ Analysis_results <- Results |>
 handled_model <- glm(Total_AUC ~ Bat_ID + Handled, data = Analysis_results)
 summary(handled_model)
 ```
-Looks like handling day matters for some bats more than others. 
+Okay handling is significant. 
 
 I am going to take AUC days bats were not handled and compare them to primary +3 and secondary +3. If there is no difference, I can group these days as non-handled 
 
@@ -132,22 +167,43 @@ handling_check <- Analysis_results |>
     DateType = relevel(DateType, ref = "None"))
 
 handle_check <- glm(Total_AUC ~ Bat_ID + DateType, 
-                 data = handling_check, 
-                 family = gaussian(link = "identity"))
+                 data = handling_check) 
 
 summary(handle_check)
 ```
-Hmm again, depends on the bat, but primary +3 is significantly different from non-handling days but secondary + 3 is not significantly different. I was considering grouping these days into "None" but I am going to keep it separate. 
+Primary +3 is significantly different but not secondary +3
 
 ```{r}
+
 treatment_glm <- glm(Total_AUC ~ Treatment, data = Analysis_results)
 summary(treatment_glm)
+
+treatment_glm2 <- glm(Total_AUC ~ DateType * Treatment, data = Analysis_results)
+summary(treatment_glm2)
+
+em_interaction <- emmeans(treatment_glm2, ~ Treatment | DateType)
+
+# 2. Run Tukey pairwise comparisons within each DateType split
+comps_treatment_glm2 <- pairs(em_interaction, adjust = "tukey")
+ summary(comps_treatment_glm2) 
+
+Treatxdatetype <- summary(comps_treatment_glm2) 
+
+glm_auc_txd <- as.data.frame(Treatxdatetype)
+
+write.csv(glm_auc_txd, "glm_auc_txd.csv", row.names = FALSE)
+
 ```
-So AUC for NOCO, Primary, and Dual is not significant, but secondary and sham are significantly different. 
+Confused... 
 
 ```{r}
-treatment_days_glm <- glm(Total_AUC ~ Treatment + DateType , data = Analysis_results)
+treatment_days_glm <- glm(Total_AUC ~ Treatment * DateType , data = Analysis_results)
 summary(treatment_days_glm)
+comps1 <- glht(treatment_days_glm, linfct = mcp(Treatment = "Tukey"))
+summary(comps1)
+anova(treatment_days_glm,test="Chisq")
+date_means <- emmeans(treatment_days_glm, specs = pairwise ~ DateType)
+summary(date_means)
 ```
 
 
@@ -168,6 +224,8 @@ BP_TC_analysis <- Analysis_results |>
 
 BP_Analysis <- glm(Total_AUC ~ DateType ,data = BP_TC_analysis)
 summary(BP_Analysis)
+comps <- glht(BP_Analysis, linfct = mcp(DateType = "Tukey"))
+summary(comps)
 ```
 Okay! Clearly a difference in AUC when comparing basal TC to primary TC!
 
@@ -183,7 +241,79 @@ Looking at weight
 weight_glm <- glm(Total_AUC ~ Weight , data = Analysis_results)
 summary(weight_glm)
 ```
-Significant but not surprising. I do need to check and see if the NAs are interfering with this. 
+Significant but not surprising.
+
+```{r}
+SHAM <- Analysis_results |> 
+  filter(Treatment == "SHAM")
+
+NoCo <- Analysis_results |> 
+  filter(Treatment == "NoCo")
+
+Dual <- Analysis_results |> 
+  filter(Treatment == "Dual")
+
+Primary <- Analysis_results |> 
+  filter(Treatment == "Primary")
+
+Secondary <- Analysis_results |> 
+  filter(Treatment == "Secondary")
+```
+
+```{r}
+SHAM_glm <- glm(Total_AUC ~ Bat_ID , data = SHAM)
+summary(SHAM_glm)
+```
+
+```{r}
+NoCO_glm <- glm(Total_AUC ~ Bat_ID , data = NoCo)
+summary(NoCO_glm)
+```
+
+```{r}
+Dual_glm <- glm(Total_AUC ~ Bat_ID , data = Dual)
+summary(Dual_glm)
+```
+
+```{r}
+Primary_glm <- glm(Total_AUC ~ Bat_ID , data = Primary)
+summary(Primary_glm)
+```
+
+```{r}
+Secondary_glm <- glm(Total_AUC ~ Bat_ID , data = Secondary)
+summary(Secondary_glm)
+```
+
+```{r}
+Primary_comp <- Analysis_results |> 
+  filter(DateType == "Primary")
+
+Sec_comp <- Analysis_results |> 
+  filter(DateType == "Secondary")
+
+PS_Compare <- inner_join(Primary_comp, Sec_comp, join_by(Bat_ID))
+PS_glm <- glm(Total_AUC.y ~ Total_AUC.x, data = PS_Compare)
+summary(PS_glm)
+emtrends(PS_glm, ~ Total_AUC.x, var = "Total_AUC.x")
+summary(PS_comps)
+```
+Not significant, but i want to look at this with only TC bats
+
+```{r}
+TC_primary <- Primary_comp |> 
+  filter(Treatment %in% c("Dual", "Primary", "Secondary"))
+
+TC_sec <- Sec_comp |> 
+  filter(Treatment %in% c("Dual", "Primary", "Secondary"))
+
+TC_PS_Compare <- inner_join(TC_primary, TC_sec, join_by(Bat_ID))
+TC_PS_glm <- glm(Total_AUC.y ~ Total_AUC.x, data = TC_PS_Compare)
+summary(TC_PS_glm)
+emmeans(PS_glm, ~ Total_AUC.x, var = "Total_AUC.x")
+summary(PS_comps)
+```
+Also not significant, but barely. I think excluding secondary from this would be interesting, since they were not thermally challenged. I do want to see if primary bats 
 
 ## Basal Temp
 
