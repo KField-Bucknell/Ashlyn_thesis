@@ -1115,27 +1115,33 @@ Results <- Results_Analysis |>
 ## Weight Data
 
 ```{r}
-Bleed_Data <- read_excel("EPFU 2025 Bleeding.xlsx", # read in bleeding data
-    range = "A1:N298", na = "NA")
+Weight_Data <- read_excel("EPFU_Interpolated_Weights.xlsx", # read in weight data
+    range = "A1:C1744", na = "NA")
 
-glimpse(Bleed_Data)
+glimpse(Weight_Data)
 
-# i will eventually need to fix the format of dates, but thats a later ashlyn problem
+Weight_Data <- Weight_Data |> 
+  # 1. Create a temporary numeric column for correct chronological sorting
+  mutate(Day_Num = as.numeric(str_remove(ExperimentDay, "D"))) |> 
+  
+  # 2. Sort chronologically by bat and the actual numeric day
+  arrange(Bat_ID, Day_Num) |> 
+  
+  # 3. Group by Bat so you don't interpolate between different animals
+  group_by(Bat_ID) |> 
+  
+  # 4. Fill the gaps (linear interpolation)
+  mutate(Weight = na.approx(Weight, na.rm = FALSE)) |> 
+  
+  # 5. Clean up grouping and remove the temporary column
+  ungroup() |>
 
-Bleed_Data <- Bleed_Data |> 
-  rename(Bat_ID = "Pittag") |> 
-  rename(ExperimentDay = "Experiment Day")
+  # 6. Convert to data.table
+  as.data.table()
+
 
 Results <- Results |> 
-  left_join(Bleed_Data |> select(Bat_ID, ExperimentDay, Weight), join_by(Bat_ID,ExperimentDay))
-
-Attachment_Data <- read_excel("EPFU_iButton _Attachment.xlsx", # read in bleeding data
-    range = "A1:I44", na = "NA") |> 
-  select(Bat_ID, ExperimentDay, 'post-weight') |> 
-  rename(Weight = 'post-weight')
-
-Results <- Results |> 
-  rows_patch(Attachment_Data, by = c("Bat_ID", "ExperimentDay"), unmatched = "ignore")
+  left_join(Weight_Data |> select(Bat_ID, ExperimentDay, Weight), join_by(Bat_ID,ExperimentDay))
 
 ```
 
