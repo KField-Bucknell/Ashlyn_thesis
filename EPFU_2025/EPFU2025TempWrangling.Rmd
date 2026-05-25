@@ -1099,10 +1099,10 @@ Results_Analysis <- Results_Analysis |>
 Results_Analysis <- Results_Analysis |> 
   mutate(Cage = case_when(
     Treatment %in% c("SHAM", "NoCo") ~ "None",
-    Treatment %in% c("Dual", "Primary") & DateType == "Primary TC" & Group == "GP 1" ~ "D+P1",
-    Treatment %in% c("Dual", "Primary") & DateType == "Primary TC" & Group == "GP 2" ~ "D+P2",
-    Treatment %in% c("Dual", "Secondary") & DateType == "Secondary TC" & Group == "GP 1" ~ "D+S1",
-    Treatment %in% c("Dual", "Secondary") & DateType == "Secondary TC" & Group == "GP 2" ~ "D+S2",
+    Treatment %in% c("Dual", "Primary") & DateType == "Primary" & Group == "GP 1" ~ "D+P1",
+    Treatment %in% c("Dual", "Primary") & DateType == "Primary" & Group == "GP 2" ~ "D+P2",
+    Treatment %in% c("Dual", "Secondary") & DateType == "Secondary" & Group == "GP 1" ~ "D+S1",
+    Treatment %in% c("Dual", "Secondary") & DateType == "Secondary" & Group == "GP 2" ~ "D+S2",
     Treatment %in% c("Dual") & DateType == "Basal TC" ~ "Dual",
     Treatment %in% c("Primary") & DateType == "Basal TC" ~ "Primary",
     Treatment %in% c("Secondary") & DateType == "Basal TC" ~ "Secondary",

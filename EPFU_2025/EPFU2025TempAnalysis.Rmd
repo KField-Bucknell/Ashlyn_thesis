@@ -130,28 +130,7 @@ Analysis_results <- Results |>
 
 ```
 
-Now that I have just one time point
 ```{r}
-Analysis_results <- Analysis_results |> 
-  # 1. Create a temporary numeric column for correct chronological sorting
-  mutate(Day_Num = as.numeric(str_remove(ExperimentDay, "D"))) |> 
-  
-  # 2. Sort chronologically by bat and the actual numeric day
-  arrange(Bat_ID, Day_Num) |> 
-  
-  # 3. Group by Bat so you don't interpolate between different animals
-  group_by(Bat_ID) |> 
-  
-  # 4. Fill the gaps (linear interpolation)
-  mutate(Weight = na.approx(Weight, na.rm = FALSE)) |> 
-  
-  # 5. Clean up grouping and remove the temporary column
-  ungroup() |> 
-  select(-Day_Num) |> 
-  
-  # 6. Convert to data.table
-  as.data.table()
-
 Analysis_results <- Analysis_results |> 
 mutate(Treatment = fct_relevel(Treatment, "SHAM"),
          DateType = fct_relevel(DateType, "None"), 
@@ -183,23 +162,33 @@ Primary +3 is significantly different but not secondary +3. For that reason I am
 
 ```{r}
 
-treatment_glm <- glm(Total_AUC ~ Treatment, data = Analysis_results)
+weight_group_glm <- glm(Weight ~ Treatment, data = Analysis_results)
+summary(weight_group_glm)
+
+treatment_glm <- glm(Total_AUC ~ DateType * Treatment, data = Analysis_results)
 summary(treatment_glm)
-
-treatment_glm2 <- glm(Total_AUC ~ DateType * Treatment, data = Analysis_results)
-summary(treatment_glm2)
-
-em_interaction <- emmeans(treatment_glm2, ~ Treatment | DateType)
-
-# 2. Run Tukey pairwise comparisons within each DateType split
-comps_treatment_glm2 <- pairs(em_interaction, adjust = "tukey")
- summary(comps_treatment_glm2) 
-
-Treatxdatetype <- summary(comps_treatment_glm2) 
+em_interaction <- emmeans(treatment_glm, ~ Treatment | DateType)
+comps_treatment_glm <- pairs(em_interaction, adjust = "tukey")
+ summary(comps_treatment_glm) 
+ Treatxdatetype <- summary(comps_treatment_glm) 
 
 glm_auc_txd <- as.data.frame(Treatxdatetype)
 
 write.csv(glm_auc_txd, "glm_auc_txd.csv", row.names = FALSE)
+ 
+treatment_glm2 <- glm(Total_AUC ~ Weight + DateType * Treatment, data = Analysis_results)
+summary(treatment_glm2)
+
+em_interaction2 <- emmeans(treatment_glm2, ~ Treatment | DateType)
+
+comps_treatment_glm2 <- pairs(em_interaction2, adjust = "tukey")
+ summary(comps_treatment_glm2) 
+
+Treatxdatetype2 <- summary(comps_treatment_glm2) 
+
+glm_auc_txd2 <- as.data.frame(Treatxdatetype2)
+
+write.csv(glm_auc_txd2, "glm_auc_txd2.csv", row.names = FALSE)
 
 ```
 Putting this into my thesis!
@@ -435,13 +424,61 @@ I am interested to see if there is any difference in
 
 ## Basal Temp
 
-
-
 ```{r}
 Metadata <- Metadata |> 
   mutate(id = Bat_ID) |> 
   mutate(id = as.character(id)) |> 
     mutate(Treatment = fct_relevel(Treatment, "CP", "CP+S", "CS", "NoCo", "SHAM"))
+
+
+None_data <- Results |> 
+  filter(DateType == "None") |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
+
+none_met <- data.table::data.table(Metadata2, key = "id")
+none_data2 <- data.table::data.table(None_data, key = "id")
+
+ none_behavr <- behavr(none_data2, none_met)
+
+none_behavr |>
+  ggetho(aes(x = t, y = Temperature, colour = Treatment, fill = Treatment)) +
+  geom_hline(aes(yintercept = Tnorm), 
+             linetype = "dashed", 
+             color = "black", 
+             linewidth = 0.8) +
+  stat_pop_etho() +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 39600,
+    l_duration = 43200, 
+    ld_colours = c("black", "white")
+  ) +
+  facet_grid(Treatment ~ .) +
+  scale_x_continuous(
+    name = "Date/time",
+    # Start at the minimum time in your data, end at max, move by 2 hours (7200s)
+    breaks = seq(min(none_behavr$t), max(none_behavr$t), by = 7200), 
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%H:%M"),
+    expand = c(0,0)
+  ) +
+  scale_colour_manual(values = treatmentcolors) +
+  scale_fill_manual(values = treatmentcolors) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  theme(text = element_text(size = 18), panel.grid = element_blank())+
+  labs(y = "Temp (C)") -> EPFU_none
+
+print(EPFU_none)
+
+
+ggsave("EPFU_Basal.jpeg", plot = EPFU_none, device = jpeg(), width = 12, height = 6.67)
+```
+
+
+```{r}
+
 Metadata2 <- Metadata |> 
   left_join(
     Analysis_results |> select(Bat_ID, Tnorm) |> distinct(), 
@@ -522,13 +559,19 @@ shaded <- data.frame(Treatment = c("CP", "CP+S"), xmin = 1757344201 ,
                      label = c("Primary TC"))
 
 primary_behavr |>
-  ggetho(aes(x = t, y = Temperature, colour = Treatment)) +
-   geom_hline(aes(yintercept = Tnorm, colour = "Tnorm"), 
-             linetype = "dashed", 
-             linewidth = 0.8) +
+  ggetho(aes(x = t, y = Temperature, colour = Treatment, fill = Treatment)) +
+  
+  # 1. Shaded region
   geom_rect(data = shaded, 
             aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
             fill = "grey70", alpha = 0.5, inherit.aes = FALSE) +
+            
+  # 2. Baseline line (Moved colour OUTSIDE aes)
+  geom_hline(aes(yintercept = Tnorm), 
+             colour = "black",        # Static color, won't show in legend
+             linetype = "dashed", 
+             linewidth = 0.8) +
+             
   stat_pop_etho() +
   stat_ld_annotations(
     period = 86400,
@@ -538,16 +581,17 @@ primary_behavr |>
   facet_grid(Treatment ~ .) +
   scale_x_continuous(
     name = "Date/Time",
-    # Start at the minimum time in your data, end at max, move by 2 hours (7200s)
     breaks = seq(1757253601, to = max(primary_behavr$t), by = 86400), 
     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%H:%M"),
-    expand = c(0,0)) +
+    expand = c(0,0) ) +
+  # 3. Use your original treatmentcolors without the "Tnorm" entry
   scale_colour_manual(values = treatmentcolors) +
   scale_fill_manual(values = treatmentcolors) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-  theme(text = element_text(size = 16), panel.grid = element_blank())+
-  labs(y = "Temp (C)") -> EPFU_Primary
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+    text = element_text(size = 16),
+    panel.grid = element_blank()) +
+  labs(y = "Temp (C)", colour = "Treatment", fill = "Treatment") -> EPFU_Primary
 
 print(EPFU_Primary)
  
