@@ -191,6 +191,22 @@ glm_auc_txd2 <- as.data.frame(Treatxdatetype2)
 write.csv(glm_auc_txd2, "glm_auc_txd2.csv", row.names = FALSE)
 
 ```
+
+```{r}
+treatment_glm3 <- glm(Total_AUC ~ Group + Weight + DateType * Treatment, data = Analysis_results)
+summary(treatment_glm3)
+
+em_interaction3 <- emmeans(treatment_glm3, ~ Treatment | DateType)
+
+comps_treatment_glm3 <- pairs(em_interaction3, adjust = "tukey")
+ summary(comps_treatment_glm3) 
+
+Treatxdatetype3 <- summary(comps_treatment_glm3) 
+
+glm_auc_txd3 <- as.data.frame(Treatxdatetype3)
+
+```
+
 Putting this into my thesis!
 
 
