@@ -104,6 +104,7 @@ Results <- Results |>
 Results <- Results |> 
   # 1. Calculate the difference for every time point
   mutate(Temp_Diff = Temperature - Temp_norm) |> 
+  mutate(Chours = Temp_Diff * 0.1667) |> 
     # 2. Sort chronologically by bat and time to ensure cumsum adds in the right order
   # (Replace 'DateTime' with the actual name of your timestamp column)
   arrange(Bat_ID, NumberDate) |> 
@@ -112,9 +113,9 @@ Results <- Results |>
   group_by(Bat_ID, ExperimentDay) |> 
     # 4. Calculate the running sum. Because of the group_by, 
   # it will automatically reset to 0 at the start of each experiment day.
-  mutate(running_AUC = cumsum(ifelse(is.na(Temp_Diff), 0, Temp_Diff)),
-    Total_AUC = sum(Temp_Diff, na.rm = TRUE),
-         valid_counts = sum(!is.na(Temp_Diff))) |> 
+  mutate(running_AUC = cumsum(ifelse(is.na(Chours), 0, Chours)),
+    Total_AUC = sum(Chours, na.rm = TRUE),
+         valid_counts = sum(!is.na(Chours))) |> 
     # 5. Clean up grouping
   ungroup()
 
@@ -161,7 +162,6 @@ summary(handle_check)
 Primary +3 is significantly different but not secondary +3. For that reason I am going to keep both as a handled day. 
 
 ```{r}
-
 weight_group_glm <- glm(Weight ~ Treatment, data = Analysis_results)
 summary(weight_group_glm)
 
@@ -367,11 +367,6 @@ CPandNOCO_compare <- PS_Compare |>
   mutate(Primary_ratio = Total_AUC.x/Weight.x,
          Secondary_ratio = Total_AUC.y/Weight.y)
 
-CPandNOCO_compare_glm <- glm(Secondary_ratio ~ Primary_ratio * Treatment.x, data = CPandNOCO_compare)
-
-emmeans(CPandNOCO_compare_glm, ~ Treatment.x | Primary_ratio)
-pairs(emmeans(CPandNOCO_compare_glm, ~ Treatment.x | Primary_ratio))
-
 ```
 
 
@@ -381,12 +376,13 @@ summary(CPandNOCO_compare_glm2)
 CPandNOCO <-pairs(emmeans(CPandNOCO_compare_glm2, ~ Treatment.x | Total_AUC.x)) 
 summary(CPandNOCO)
 
-interact_plot(CPandNOCO_compare_glm2, pred = Total_AUC.x, modx = Treatment.x, interval = TRUE, legend.main = "Treatment Group", plot.points = TRUE) +
-   xlim(-1800, 400) + 
-  ylim(-2000, 200) +
-  labs(x = "Primary AUC", y = "Secondary AUC") +
-  # Make it look professional
-  theme_bw()
+#Fix this...
+#interact_plot(CPandNOCO_compare_glm2, pred = Total_AUC.x, modx = Treatment.x, interval = #TRUE, legend.main = "Treatment Group", plot.points = TRUE) +
+#   xlim(-1800, 400) + 
+#  ylim(-2000, 200) +
+#  labs(x = "Primary AUC", y = "Secondary AUC") +
+#  # Make it look professional
+#  theme_bw()
 
 CPandNOCO_compare_glm <- glm(Total_AUC.y ~ Total_AUC.x * Treatment.x, data = CPandNOCO_compare)
 emmeans(CPandNOCO_compare_glm, ~ Treatment.x | Total_AUC.x)
@@ -430,6 +426,10 @@ Metadata <- Metadata |>
   mutate(id = as.character(id)) |> 
     mutate(Treatment = fct_relevel(Treatment, "CP", "CP+S", "CS", "NoCo", "SHAM"))
 
+Metadata2 <- Metadata |> 
+  left_join(
+    Analysis_results |> select(Bat_ID, Tnorm) |> distinct(), 
+    by = "Bat_ID")
 
 None_data <- Results |> 
   filter(DateType == "None") |> 
@@ -473,17 +473,11 @@ none_behavr |>
 print(EPFU_none)
 
 
-ggsave("EPFU_Basal.jpeg", plot = EPFU_none, device = jpeg(), width = 12, height = 6.67)
+ggsave("EPFU_none.jpeg", plot = EPFU_none, device = jpeg(), width = 12, height = 6.67)
 ```
 
 
 ```{r}
-
-Metadata2 <- Metadata |> 
-  left_join(
-    Analysis_results |> select(Bat_ID, Tnorm) |> distinct(), 
-    by = "Bat_ID")
-
 Basal_TC <- Basal_TC |> 
   mutate(id = Bat_ID) |> 
   mutate(t = NumberDate) |> 
@@ -637,11 +631,12 @@ ggetho(secondary_behavr, aes(z = Temperature, y = Treatment)) + stat_tile_etho()
 
 shaded2 <- data.frame(Treatment = c("CS", "CP+S"), xmin = 1759155601 , 
   xmax = 1759234201,#adds shaded regions for both the basal and primary thermal #challenges
-                     label = c("Secondary TC"))
+  label = c("Secondary TC"))
 
 secondary_behavr |>
   ggetho(aes(x = t, y = Temperature, colour = Treatment)) +
-   geom_hline(aes(yintercept = Tnorm, colour = "Tnorm"), 
+   geom_hline(aes(yintercept = Tnorm), 
+             colour = "black",        # Static color, won't show in legend
              linetype = "dashed", 
              linewidth = 0.8) +
   geom_rect(data = shaded2, 
@@ -669,13 +664,25 @@ secondary_behavr |>
 
 print(EPFU_Secondary)
  
-ggsave("EPFU_Secondary.jpeg", plot = EPFU_Secondary, device = jpeg(), width = 0, height = 6.67)
-
+ggsave("EPFU_Secondary.jpeg", plot = EPFU_Secondary, device = jpeg(), width = 10, height = 6.67)
 ```
 
 ```{r, warning=FALSE}
-# i don't think this is working
-ggetho(primary_behavr, aes(y= Temperature, colour= Treatment), time_wrap = 86400) +
+None_test <- Results |> 
+  filter(DateType == "None")
+
+None_test <- None_test |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
+
+ none_met <- data.table::data.table(Metadata2, key = "id")
+ None_test2 <- data.table::data.table(None_test, key = "id")
+
+ none_behavr <- behavr(None_test2, none_met)
+ summary(none_behavr)
+
+ggetho(none_behavr, aes(y= Temperature, colour= Treatment), time_wrap = 86400) +
       stat_pop_etho() +
       stat_ld_annotations() +
      # facet_grid(id ~ .) +

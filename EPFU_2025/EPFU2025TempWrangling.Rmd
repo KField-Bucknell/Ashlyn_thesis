@@ -976,13 +976,30 @@ ggplotly(check)
 
 ## Experiment Day Labeling
 
-Looks incredible ugly but we get the point. I want to add a column that says what each day of the experiment is (Primary immunization, basal TC, etc.). I will also add another column that is handled vs not handled, and another that is experiment day (D21, D22)
-
 ```{r}
 Bat_results_met$time_aligned[Bat_results_met$Group == "GP 2"] <- Bat_results_met$time_aligned[Bat_results_met$Group == "GP 2"] - lubridate::days(3)
 
 Results_Analysis <- all_results_met |> 
   mutate(DateType = "")
+
+day_0_anchor <- ymd_hms("2025-09-08 14:00:01") 
+
+Results_Analysis <- Results_Analysis |> 
+  mutate(Days_From_Anchor = as.numeric(difftime(DateTime, day_0_anchor, units = "days")),
+    # 4. Use floor() so that Day 0 spans from Sept 9 2pm to Sept 10 1:59pm
+    Day_Number = floor(Days_From_Anchor),
+      # 5. Format it to look like "D0", "D1", "D-1", etc.
+    ExperimentDay = case_when(
+      Day_Number == 0  ~ "D0",
+      Day_Number > 0   ~ paste0("D", Day_Number),
+      Day_Number < 0   ~ paste0("D", Day_Number) # Automatically handles the negative sign (e.g., "D-1")
+    ))
+```
+
+
+Looks incredible ugly but we get the point. I want to add a column that says what each day of the experiment is (Primary immunization, basal TC, etc.). I will also add another column that is handled vs not handled, and another that is experiment day (D21, D22)
+
+```{r}
 
 Results_Analysis <- Results_Analysis|> 
   mutate(DateType = case_when(
@@ -997,6 +1014,7 @@ Results_Analysis <- Results_Analysis|>
       Treatment == "NoCo" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
       Treatment == "NoCo" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
       Treatment == "NoCo" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Treatment == "NoCo" & Day_Number < 0 ~ "Pre",
       Treatment == "NoCo" ~ "None", 
       TRUE ~ DateType))
 
@@ -1013,6 +1031,7 @@ Results_Analysis <- Results_Analysis|>
       Treatment == "SHAM" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
       Treatment == "SHAM" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
       Treatment == "SHAM" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Treatment == "SHAM" & Day_Number < 0 ~ "Pre",
       Treatment == "SHAM" ~ "None", 
       TRUE ~ DateType))
 
@@ -1029,6 +1048,7 @@ Results_Analysis <- Results_Analysis|>
       Treatment == "Dual" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
       Treatment == "Dual" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
       Treatment == "Dual" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Treatment == "Dual" & Day_Number < 0 ~ "Pre",
       Treatment == "Dual" ~ "None", 
       TRUE ~ DateType))
 
@@ -1045,6 +1065,7 @@ Results_Analysis <- Results_Analysis|>
       Treatment == "Primary" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
       Treatment == "Primary" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
       Treatment == "Primary" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Treatment == "Primary" & Day_Number < 0 ~ "Pre",
       Treatment == "Primary" ~ "None", 
       TRUE ~ DateType))
 
@@ -1061,6 +1082,7 @@ Results_Analysis <- Results_Analysis|>
       Treatment == "Secondary" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
       Treatment == "Secondary" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
       Treatment == "Secondary" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Treatment == "Secondary" & Day_Number < 0 ~ "Pre",
       Treatment == "Secondary" ~ "None", 
       TRUE ~ DateType))
 
@@ -1084,18 +1106,7 @@ Results_Analysis <- Results_Analysis |>
 Okay got that done! Now I want to add another column that is experiment date. 
 
 ```{r}
-day_0_anchor <- ymd_hms("2025-09-08 14:00:01") 
 
-Results_Analysis <- Results_Analysis |> 
-  mutate(Days_From_Anchor = as.numeric(difftime(DateTime, day_0_anchor, units = "days")),
-    # 4. Use floor() so that Day 0 spans from Sept 9 2pm to Sept 10 1:59pm
-    Day_Number = floor(Days_From_Anchor),
-      # 5. Format it to look like "D0", "D1", "D-1", etc.
-    ExperimentDay = case_when(
-      Day_Number == 0  ~ "D0",
-      Day_Number > 0   ~ paste0("D", Day_Number),
-      Day_Number < 0   ~ paste0("D", Day_Number) # Automatically handles the negative sign (e.g., "D-1")
-    ))
 Results_Analysis <- Results_Analysis |> 
   mutate(Cage = case_when(
     Treatment %in% c("SHAM", "NoCo") ~ "None",
