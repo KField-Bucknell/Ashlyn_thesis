@@ -112,17 +112,25 @@ PrimaryBatNames <- unique(Primary_Results$Bat_ID)
 ##Primary Temp
 
 ```{r}
+treatmentcolors <- c("Cold" = "#9EB0FFFF",
+            "NoCo" =  "#8A3F2A",
+            "SHAM" = "#11181DFF",
+            "Tnorm" = "black")
+
+Primary_trimmed <- Primary_Results |> 
+  filter(NumberDate < 1748451600)
+
  Primary_Met <- Primary_Met |> 
   mutate(id = Bat_ID) |> 
   mutate(id = as.character(id))
 
-Primary_Results <- Primary_Results |> 
+Primary_trimmed <- Primary_trimmed |> 
   mutate(id = Bat_ID) |> 
   mutate(t = NumberDate) |> 
   mutate(id = as.character(id))
 
  Primary_met2 <- data.table::data.table(Primary_Met, key = "id")
- Primary_results2 <- data.table::data.table(Primary_Results, key = "id")
+ Primary_results2 <- data.table::data.table(Primary_trimmed, key = "id")
 
  primary_behavr <- behavr(Primary_results2, Primary_met2)
  summary(primary_behavr)
@@ -153,34 +161,17 @@ shaded <- data.frame(xmin = c(1748001900 , 1748277000), #adds shaded regions for
   facet_grid(id ~ .) +
   scale_x_continuous(
     name = "Date/time",
-    breaks = seq(1747767600, max(primary_behavr$t), by = 86400), 
+    breaks = seq(1747753200, max(primary_behavr$t), by = 86400), 
     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
     expand = c(0,0)) +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-    labs(y = "Temp (C)")-> MOCO_Primary
- 
-  #i removed the facet but I hate it lol
- primary_behavr |>
-  ggetho(aes(x = t, y = Temperature, colour = id))+
-  geom_rect(data = shaded, 
-            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
-             alpha = 0.3, inherit.aes = FALSE) +
-    stat_pop_etho() +
-  stat_ld_annotations(
-    period = 86400,
-    phase = 25200,
-    l_duration = 43200, 
-    ld_colours = c( "white", "black")) +
-  scale_x_continuous(
-    name = "Date/time",
-    breaks = seq(1747767600, max(primary_behavr$t), by = 86400), 
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
-    expand = c(0,0)) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) -> MOCO_Primary_nofacet
+      theme(text = element_text(size = 18), panel.grid = element_blank())+
+    labs(y = "Temp (°C)", colour = "Bat ID")-> MOCO_Primary
+
+  
   
 ggsave("MOCO_Primary.jpeg", plot = MOCO_Primary, device = jpeg(), width = 12, height = 6.67)
 
-ggsave("MOCO_Primary_nofacet.jpeg", plot = MOCO_Primary_nofacet, device = jpeg(), width = 12, height = 6.67)
 
 ```
 It is plotting and looks fine, but I am getting some errors. Need Ken to look at it. I also want to add shaded regions that show when they are being handled. But I actually might not do this because these bats are handled every single night for feeding.. ugh stupid MOCO
@@ -193,15 +184,20 @@ It is plotting and looks fine, but I am getting some errors. Need Ken to look at
   mutate(id = Bat_ID) |> 
   mutate(id = as.character(id))
 
-Secondary_Results <- Secondary_Results |> 
+SQ1 <- Secondary_Results |> 
+  left_join(Secondary_Met, join_by(Bat_ID)) |> 
+  filter(Treatment %in% c("SHAM", "NoCo"))
+
+SQ1_2 <- SQ1 |> 
   mutate(id = Bat_ID) |> 
   mutate(t = NumberDate) |> 
-  mutate(id = as.character(id))
+  mutate(id = as.character(id)) |> 
+  filter(NumberDate < 1749582000)
 
  Secondary_met2 <- data.table::data.table(Secondary_Met, key = "id")
- Secondary_results2 <- data.table::data.table(Secondary_Results, key = "id")
+ Secondary_results3 <- data.table::data.table(SQ1_2, key = "id")
 
- secondary_behavr <- behavr(Secondary_results2, Secondary_met2)
+ SQ1_behavr <- behavr(Secondary_results3, Secondary_met2)
  summary(secondary_behavr)
 ```
 
@@ -209,11 +205,11 @@ Secondary_Results <- Secondary_Results |>
 secondary_etho  <- ggetho(secondary_behavr, aes(x=t, y=id, z=Temperature)) + stat_tile_etho() +
   scale_x_continuous(
     name = "Date/time",
-    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
+    breaks = seq(1749042000, max(secondary_behavr$t), by = 86400), 
     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
     expand = c(0,0)) +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-  labs(fill = "Temp (C)",
+  labs(fill = "Temp (°C)",
        y = "Bat ID")
 
 ggsave("MOCO_Sec_Etho.jpeg", plot = secondary_etho, device = jpeg(), width = 12, height = 6.67)
@@ -225,7 +221,8 @@ ggetho(secondary_behavr, aes(z = Temperature, y = Treatment)) + stat_tile_etho()
 
 ```{r, warning=FALSE}
 
-secondary_behavr |>
+
+SQ1_behavr |>
   ggetho(aes(x = t, y = Temperature, colour = Treatment))+
   stat_pop_etho() +
   stat_ld_annotations(
@@ -235,11 +232,15 @@ secondary_behavr |>
     ld_colours = c( "white", "black")) +
   facet_grid(Treatment ~ .) +
     scale_x_continuous(
-    name = "Date/time",
-    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
+    name = "Experiment Day",
+    breaks = seq(1749042000, max(SQ1_behavr$t), by = 86400), 
     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
     expand = c(0,0)) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) -> MOCO_Secondary
+  scale_colour_manual(values = treatmentcolors) +
+  scale_fill_manual(values = treatmentcolors) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+ theme(text = element_text(size = 18), panel.grid = element_blank())+
+    labs( y = "Temp (°C)", colour = "Bat ID", fill = "Bat ID")-> MOCO_Secondary
  
 ggsave("MOCO_Secondary.jpeg", plot = MOCO_Secondary, device = jpeg(), width = 12, height = 6.67)
 

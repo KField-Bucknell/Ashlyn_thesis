@@ -202,17 +202,6 @@ ggplotly(p)
 clean_results <- allbatresults |> 
   mutate(Temperature = ifelse(Temperature < 0 | Temperature > 50, NA, Temperature)) # changes temps over 50 and under 0 to na
 
-clean_results <- clean_results |> 
-  # 2. Sort chronologically by bat and time
-  arrange(Bat_ID, DateTime) |> 
-  # 3. Group by Bat so you don't interpolate between different animals
-  group_by(Bat_ID) |> 
-  # 4. Fill the gaps (only if 1-3 consecutive points are missing)
-  mutate(fixed_temp = na.approx(Temperature, maxgap = 3, na.rm = FALSE)) |> 
-  # 5. Clean up grouping
-  ungroup() |> 
-  as.data.table()
-
 summary(as.factor(allbatresults$Bat_ID)) # display all bat names and their counts use to verify they ran correctly
 summary(as.factor(clean_results$Bat_ID)) # comparing counts between the two
 ```
@@ -226,8 +215,7 @@ Clean_results_met <- clean_results %>%
 
 Cal_1_results <- Clean_results_met |>  # extracting second calibration results
   filter(Calibration == 1) |> 
-  select(Bat_ID, DateTime, Unit, fixed_temp, NumberDate) |> 
-  rename(Temperature = "fixed_temp")
+  select(Bat_ID, DateTime, Unit, Temperature, NumberDate)
 
 Cal_1_results <- Cal_1_results |> 
   group_by(Bat_ID) |> 
@@ -281,8 +269,7 @@ Okay, so for this one, I am going to take the three loggers that went through bo
 ```{r}
 Cal_2_results <- Clean_results_met |> # extracting second calibration results
   filter(Calibration == 2) |> 
-  select(Bat_ID, DateTime, Unit, fixed_temp, NumberDate) |> 
-  rename(Temperature = "fixed_temp")
+  select(Bat_ID, DateTime, Unit, Temperature, NumberDate)
 
 Cal_2_results <- Cal_2_results |> 
   group_by(Bat_ID) |> 
@@ -444,9 +431,16 @@ summary(as.factor(Trimming4$Bat_ID))
 #fifth trim
 
 Trimming5 <- allbatresults2 |> 
-  filter(Attachment_Date == 1759363200) |> 
-  filter(NumberDate >= 1759420201)
-summary(as.factor(Trimming5$Bat_ID))
+  filter( Attachment_Date == 1759363200,
+    case_when(
+      # Rule for Dual and Secondary
+      Bat_ID == "APS36007_boost" ~ NumberDate >= 1759411801,
+      Bat_ID == "APS36010_boost" ~ NumberDate >= 1759410001,
+      Bat_ID == "APS36057_boost" ~ NumberDate >= 1759420201,
+      Bat_ID == "APS60079_boost" ~ NumberDate >= 1759419601,
+      Bat_ID == "APS60088_boost" ~ NumberDate >= 1759420801,
+      Bat_ID == "APS60113_boost" ~ NumberDate >= 1759415401,
+      Bat_ID == "APS60156_boost" ~ NumberDate >= 1759410601 ))
 
 LTrimmed <- bind_rows(Trimming1, Trimming2, Trimming3, Trimming4, Trimming5)
 
@@ -485,8 +479,8 @@ summary(as.factor(RTrimming2$Bat_ID))
 
 RTrimming3 <- LTrimmed |> 
   filter(Bat_ID %in% c("APS36026")) |> 
-  filter(!NumberDate > 1760208601)
-summary(as.factor(RTrimming3$Bat_ID))
+  filter(!NumberDate > 1760208601) 
+summary(as.factor(RTrimming3$Bat_ID)) 
 
 # Right Trim 4 
 
@@ -549,7 +543,8 @@ summary(as.factor(Trimmed$Bat_ID))
 #last I am going to drop APS36007 boost. The data is ALL over the place so we just can't trust these readings
 
 Trimmed <- Trimmed |> 
-  filter(!Bat_ID == 'APS36007_boost')
+  filter(!Bat_ID == 'APS36007_boost',
+         NumberDate >= 1756908001)
 
 ```
 
@@ -572,16 +567,16 @@ plotly_fun4 <- function(arg1) {
 ```{r}
 lapply(cleaning_names, plotly_fun4)
 ```
-This looks pretty good to me. The last thing I am going to do is drop data above 40 and below 13. When I calculate area under the curve later, I don't want to everything to be messed up though. So what I am going to do is for data that is dropped, instead of leaving it blank I am going to take the average between the points. For some bats I have huge chunks of data that I think will be dropped. For these chunks it would be hard to take the averages so I am going to have a cut off that if there are more than 3 na's in a row, the data gets dropped.
+This looks pretty good to me. The last thing I am going to do is drop data above 42 and below 12. When I calculate area under the curve later, I don't want to everything to be messed up though. So what I am going to do is for data that is dropped, instead of leaving it blank I am going to take the average between the points. For some bats I have huge chunks of data that I think will be dropped. For these chunks it would be hard to take the averages so I am going to have a cut off that if there are more than 3 na's in a row, the data gets dropped.
 
 ```{r}
-final_results <- Trimmed |>
-  mutate(Temperature = ifelse(Temperature < 13 | Temperature > 40, NA, Temperature)) 
+final_results_ <- Trimmed |>
+  mutate(Temperature = ifelse(Temperature < 12 | Temperature > 42, NA, Temperature)) 
 ```
 
 ```{r}
 
-yyyy <- Trimmed %>%
+yyyy <- final_results_ %>%
   dplyr::filter(Bat_ID %in% batnames) %>%
   ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
   geom_line() +
@@ -594,8 +589,39 @@ ggplotly(yyyy)
 
 ```
 
+Okay, I have a few points that I need to drop and then everything should be good. 
+
+For bat 36008, I need to drop Sept 12 23:10-23:30 and 19:30-19:40. 
+For bat 36026, I need to drop Sept 27 16:00-16:10; Sept 12  04:30; Sept 5 16:50
+
 ```{r}
-final_results <- final_results |> 
+final_results_ <- final_results_ %>%
+  mutate(Temperature = case_when(
+    Bat_ID == "APS36008" & NumberDate >= 1757718601 & NumberDate <= 1757719801 ~ NA_real_,
+    Bat_ID == "APS36026" & NumberDate >= 1758988801 & NumberDate <= 1758991201 ~ NA_real_,
+    Bat_ID == "APS36026" & NumberDate == 1757651401  ~ NA_real_,
+    Bat_ID == "APS36026" & NumberDate >= 1757300401 & NumberDate <= 1757307001 ~ NA_real_,
+    Bat_ID == "APS36026" & NumberDate >= 1757649001 & NumberDate <= 1757649601 ~ NA_real_,
+    TRUE ~ Temperature # Keeps all other temperatures the same
+  ))
+```
+
+```{r}
+lol <- final_results_ %>%
+  dplyr::filter(Bat_ID %in% batnames) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(0, 50) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+
+# Convert to interactive
+ggplotly(lol)
+```
+
+
+```{r}
+final_results <- final_results_ |> 
   # 2. Sort chronologically by bat and time
   arrange(Bat_ID, DateTime) |> 
   # 3. Group by Bat so you don't interpolate between different animals
@@ -605,20 +631,23 @@ final_results <- final_results |>
   # 5. Clean up grouping
   ungroup() |> 
   as.data.table()
+
+final_results <- final_results |> 
+  select(!Temperature) |> 
+  rename("Temperature" = "fixed_temp")
 ```
 
 ```{r}
-plotly_fun5 <- function(arg1) {
-  plot_ly(data = final_results[Bat_ID == arg1],
-          x = ~DateTime, y = ~Temperature,
-          type = 'scatter', mode = 'lines') %>%
-    layout(xaxis = list(title = arg1))
-  }
+lmao <- final_results %>%
+  dplyr::filter(Bat_ID %in% batnames) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(0, 50) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
 
-```
-
-```{r}
-lapply(cleaning_names, plotly_fun5)
+# Convert to interactive
+ggplotly(lmao)
 ```
 
 ```{r}
@@ -1000,91 +1029,39 @@ Results_Analysis <- Results_Analysis |>
 Looks incredible ugly but we get the point. I want to add a column that says what each day of the experiment is (Primary immunization, basal TC, etc.). I will also add another column that is handled vs not handled, and another that is experiment day (D21, D22)
 
 ```{r}
+Results_Analysis <- Results_Analysis|> 
+  mutate(DateType = case_when(
+     Day_Number == "-1" ~ "Primary - 1",
+        Day_Number == "0" ~ "Primary",
+        Day_Number == "1" ~ "Primary + 1",
+       Day_Number == "2" ~ "Primary + 2",
+        Day_Number == "3" ~ "Primary + 3",
+       Day_Number == "20" ~ "Secondary - 1",
+        Day_Number == "21" ~ "Secondary",
+        Day_Number == "22" ~ "Secondary + 1",
+        Day_Number == "23" ~ "Secondary + 2",
+        Day_Number == "24" ~ "Secondary + 3",
+      Day_Number == "27" ~ "D27",
+       Day_Number == "28" ~ "D28",
+      Day_Number < 0 ~ "Pre",  
+      TRUE ~ "None"))
 
 Results_Analysis <- Results_Analysis|> 
   mutate(DateType = case_when(
-      Treatment == "NoCo" & NumberDate %in% c(1757253601:1757339401) ~ "Primary - 1",
-      Treatment == "NoCo" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
-      Treatment == "NoCo" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
-      Treatment == "NoCo" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
-      Treatment == "NoCo" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
-      Treatment == "NoCo" & NumberDate %in% c(1759068001: 1759153801) ~ "Secondary - 1",
-      Treatment == "NoCo" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
-      Treatment == "NoCo" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
-      Treatment == "NoCo" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
-      Treatment == "NoCo" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
-      Treatment == "NoCo" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
-      Treatment == "NoCo" & Day_Number < 0 ~ "Pre",
-      Treatment == "NoCo" ~ "None", 
-      TRUE ~ DateType))
-
-Results_Analysis <- Results_Analysis|> 
-  mutate(DateType = case_when(
-      Treatment == "SHAM" & NumberDate %in% c(1757253601:1757339401) ~ "Primary - 1",
-      Treatment == "SHAM" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
-      Treatment == "SHAM" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
-      Treatment == "SHAM" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
-      Treatment == "SHAM" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
-      Treatment == "SHAM" & NumberDate %in% c(1759068001: 1759153801) ~ "Secondary - 1",
-      Treatment == "SHAM" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
-      Treatment == "SHAM" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
-      Treatment == "SHAM" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
-      Treatment == "SHAM" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
-      Treatment == "SHAM" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
-      Treatment == "SHAM" & Day_Number < 0 ~ "Pre",
-      Treatment == "SHAM" ~ "None", 
-      TRUE ~ DateType))
-
-Results_Analysis <- Results_Analysis|> 
-  mutate(DateType = case_when(
-      Treatment == "Dual" & NumberDate %in% c(1757253601:1757339401) ~ "Primary - 1",
-      Treatment == "Dual" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
-      Treatment == "Dual" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
-      Treatment == "Dual" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
-      Treatment == "Dual" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
-      Treatment == "Dual" & NumberDate %in% c(1759068001: 1759153801) ~ "Secondary - 1",
-      Treatment == "Dual" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
-      Treatment == "Dual" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
-      Treatment == "Dual" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
-      Treatment == "Dual" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
-      Treatment == "Dual" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
-      Treatment == "Dual" & Day_Number < 0 ~ "Pre",
-      Treatment == "Dual" ~ "None", 
-      TRUE ~ DateType))
-
-Results_Analysis <- Results_Analysis|> 
-  mutate(DateType = case_when(
-      Treatment == "Primary" & NumberDate %in% c(1757253601:1757339401) ~ "Primary - 1",
-      Treatment == "Primary" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
-      Treatment == "Primary" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
-      Treatment == "Primary" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
-      Treatment == "Primary" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
-      Treatment == "Primary" & NumberDate %in% c(1759068001: 1759153801) ~ "Secondary - 1",
-      Treatment == "Primary" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
-      Treatment == "Primary" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
-      Treatment == "Primary" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
-      Treatment == "Primary" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
-      Treatment == "Primary" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
-      Treatment == "Primary" & Day_Number < 0 ~ "Pre",
-      Treatment == "Primary" ~ "None", 
-      TRUE ~ DateType))
-
-Results_Analysis <- Results_Analysis|> 
-  mutate(DateType = case_when(
-      Treatment == "Secondary" & NumberDate %in% c(1757253601:1757339401) ~ "Primary - 1",
-      Treatment == "Secondary" & NumberDate %in% c(1757340001:1757425801) ~ "Primary",
-      Treatment == "Secondary" & NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
-      Treatment == "Secondary" & NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
-      Treatment == "Secondary" & NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
-      Treatment == "Secondary" & NumberDate %in% c(1759068001: 1759153801) ~ "Secondary - 1",
-      Treatment == "Secondary" & NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
-      Treatment == "Secondary" & NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
-      Treatment == "Secondary" & NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
-      Treatment == "Secondary" & NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
-      Treatment == "Secondary" & NumberDate %in% c(1759759201: 1759845001) ~ "D28",
-      Treatment == "Secondary" & Day_Number < 0 ~ "Pre",
-      Treatment == "Secondary" ~ "None", 
-      TRUE ~ DateType))
+     NumberDate %in% c(1757253601:1757339401) ~ "Primary - 1",
+       NumberDate %in% c(1757340001:1757425801) ~ "Primary",
+       NumberDate %in% c(1757426401: 1757512201) ~ "Primary + 1",
+      NumberDate %in% c(1757512801: 1757598601) ~ "Primary + 2",
+       NumberDate %in% c(1757599201: 1757685001) ~ "Primary + 3",
+      NumberDate %in% c(1759068001: 1759153801) ~ "Secondary - 1",
+       NumberDate %in% c(1759154401: 1759240201) ~ "Secondary",
+       NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
+       NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
+       NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
+     NumberDate %in% c(1759759201: 1759845001) ~ "D27",
+      NumberDate %in% c(1759759201: 1759845001) ~ "D28",
+      Day_Number < 0 ~ "Pre",  
+      TRUE ~ "None"))
 
 Results_Analysis <- Results_Analysis|> 
   mutate(DateType = case_when(
@@ -1101,12 +1078,17 @@ Results_Analysis <- Results_Analysis|>
       TRUE ~ DateType))
 
 Results_Analysis <- Results_Analysis |> 
+  mutate(Handled = case_when(
+    Group == "GP 1" & ExperimentDay %in% c("D3", "D4", "D5") ~ "Yes",# The exception: Group 1 on days 3, 4, or 5 is "Yes" even if DateType is "None"
+    DateType == "None" ~ "No", # The standard rule: "None" is "No"
+    TRUE ~ "Yes")) # Everything else defaults to "Yes"
+
+Results_Analysis <- Results_Analysis |> 
   mutate(Handled = if_else(DateType == "None", "No", "Yes"))
 ```
 Okay got that done! Now I want to add another column that is experiment date. 
 
 ```{r}
-
 Results_Analysis <- Results_Analysis |> 
   mutate(Cage = case_when(
     Treatment %in% c("SHAM", "NoCo") ~ "None",
@@ -1118,9 +1100,29 @@ Results_Analysis <- Results_Analysis |>
     Treatment %in% c("Primary") & DateType == "Basal TC" ~ "Primary",
     Treatment %in% c("Secondary") & DateType == "Basal TC" ~ "Secondary",
     TRUE ~ "None"))
+```
 
-Results <- Results_Analysis |> 
-  select(Bat_ID, DateTime, NumberDate, Temperature, DateType,Treatment, Group, Sex, Handled, ExperimentDay, Cage)
+Okay, I want to include handling time now. 
+
+```{r}
+Handling <- read_excel("EPFU 2025 Bleeding.xlsx", # read in weight data
+    range = "A1:O421", na = "NA") |> 
+  rename(ExperimentDay = "Experiment Day",
+         Bat_ID = "Pittag") |> 
+mutate(
+    # Subtracting the "origin date" from the date-time object
+    # This leaves you with the duration of time that passed since midnight
+    `Handling Time` = as.duration(`Handling Time` - as.POSIXct("1899-12-31", tz = "UTC"))
+  )
+
+Handling <- Handling |> 
+  mutate(DisplayTime = as.period(`Handling Time`))
+
+getting_there <- Results_Analysis |> 
+  left_join(Handling |> select(Bat_ID, ExperimentDay, DisplayTime), join_by(Bat_ID, ExperimentDay))
+
+Results <- getting_there |> 
+  select(Bat_ID, DateTime, NumberDate, Temperature, DateType,Treatment, Group, Sex, Handled, ExperimentDay, Cage, DisplayTime)
 ```
 
 ## Weight Data
@@ -1170,7 +1172,6 @@ final_check <- Results%>%
 ggplotly(final_check)
 
 ```
-
 Okay, one last thing this time... We changed my treatment names from Secondary to CP, Primary to CS, and Dual to CP+S. I need to change these in the dataset, but I did not want to have to go through my whole code to change it so I'll just do it here. 
 
 ```{r}
@@ -1181,6 +1182,60 @@ Bat_Metadata$Treatment[Bat_Metadata$Treatment == "Dual"] <- "CP+S"
 Results$Treatment[Results$Treatment == "Secondary"] <- "CS"
 Results$Treatment[Results$Treatment == "Primary"] <- "CP"
 Results$Treatment[Results$Treatment == "Dual"] <- "CP+S"
+```
+
+Analysis for Budha
+```{r}
+required_days <- c("D-5", "D0", "D21")
+
+# Filter the dataframe
+budha1 <- Results_Analysis |> 
+  select(Bat_ID, DateTime, NumberDate, Temperature, ExperimentDay) |> 
+  group_by(Bat_ID) |> 
+  filter(all(required_days %in% ExperimentDay )) |> 
+  ungroup()
+
+required_days2 <- c("D0", "D21")
+
+budha2 <- Results_Analysis |> 
+  select(Bat_ID, DateTime, NumberDate, Temperature, ExperimentDay) |> 
+  group_by(Bat_ID) |> 
+  filter(all(required_days2 %in% ExperimentDay)) |> 
+  ungroup()
+```
+
+```{r}
+budha_names <- unique(budha1$Bat_ID)
+
+
+budha_check <- budha1%>%
+  dplyr::filter(Bat_ID %in% budha_names) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(10, 45) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+
+# Convert to interactive
+ggplotly(budha_check)
+
+```
+
+```{r}
+budha_names2 <- unique(budha2$Bat_ID)
+
+
+budha_check2 <- budha2%>%
+  dplyr::filter(Bat_ID %in% budha_names2) %>%
+  ggplot(aes(x = DateTime, y = Temperature, color = Bat_ID)) +
+  geom_line() +
+  ylim(10, 45) +
+  theme_minimal() +
+  labs(title = "All Bats Comparison", x = "Date", y = "Temperature (C)")
+
+# Convert to interactive
+ggplotly(budha_check2)
+
 ```
 
 ```{r}

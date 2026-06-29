@@ -81,7 +81,7 @@ Secondary_TC <- read.delim("EPFU2025Secondary_TC.tsv", # read in secondary resul
      na = "NA")
 
 Results <- read.delim("EPFU2025Results_Analysis.tsv",
-                      na = "NA")
+                      na = "NA") 
 ```
 
 Make values for bat names
@@ -127,8 +127,17 @@ Results <- Results |>
 Analysis_results <- Results |> 
   filter(grepl("13:50", DateTime),
          valid_counts >= 130) |> 
-  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group, Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage , Tnorm) 
+  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group, Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage , Tnorm) |> 
+  mutate(Bat_ID = as.factor(Bat_ID),
+         DateType = as.factor(DateType),
+         ExperimentDay = as.factor(ExperimentDay),
+         Sex = as.factor(Sex), 
+         Treatment = as.factor(Treatment), 
+         Group = as.factor(Group),
+         Handled = as.factor(Handled), 
+         Cage = as.factor(Cage))
 
+glimpse(Analysis_results)
 ```
 
 ```{r}
@@ -139,10 +148,16 @@ mutate(Treatment = fct_relevel(Treatment, "SHAM"),
 ```
 
 ## First models
-
+*** before I add this to my thesis I need to figure out how to run a tukey test on it.
 ```{r}
 handled_model <- glm(Total_AUC ~ Bat_ID + Handled, data = Analysis_results)
 summary(handled_model)
+handling_tukey <- glht(handled_model, linfct = mcp(Handled = "Tukey"))
+summary(handling_tukey)
+
+handled_results_df <- data.frame(Variable = row.names(handling_tukey), handling_tukey)
+
+write.csv(handled_results_df, "handled_model.csv", row.names = FALSE)
 ```
 Okay handling is significant. 
 
@@ -160,6 +175,20 @@ handle_check <- glm(Total_AUC ~ Bat_ID + DateType,
 summary(handle_check)
 ```
 Primary +3 is significantly different but not secondary +3. For that reason I am going to keep both as a handled day. 
+
+I wanted to run a glm to see if the number of counts had an effect and it definitely does. I need to talk to Ken about how to deal with this...
+```{r}
+data_points_glm <- glm(Total_AUC ~ valid_counts , data = Analysis_results)
+summary(data_points_glm)
+```
+
+
+Looking at weight
+```{r}
+weight_glm <- glm(Total_AUC ~ Weight , data = Analysis_results)
+summary(weight_glm)
+```
+Significant but not surprising.
 
 ```{r}
 weight_group_glm <- glm(Weight ~ Treatment, data = Analysis_results)
@@ -256,19 +285,7 @@ summary(CS_TCglm_comp)
 ```
 Okay! Clearly a difference in AUC when comparing basal TC to primary TC!
 
-I wanted to run a glm to see if the number of counts had an effect and it definitely does. I need to talk to Ken about how to deal with this...
-```{r}
-data_points_glm <- glm(Total_AUC ~ valid_counts , data = Analysis_results)
-summary(data_points_glm)
-```
 
-
-Looking at weight
-```{r}
-weight_glm <- glm(Total_AUC ~ Weight , data = Analysis_results)
-summary(weight_glm)
-```
-Significant but not surprising.
 
 ```{r}
 SHAM <- Analysis_results |> 

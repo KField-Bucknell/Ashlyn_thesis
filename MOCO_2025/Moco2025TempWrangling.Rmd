@@ -1094,6 +1094,15 @@ lapply(SecondaryNames, plotly_fun6)
 I shifted the data so now data all shows d21 on June 5th, the same day as D21 for Group 1. 
 I think I have all the data wrangling down so I am going to export some tsv with my final primary data, secondary data, metadata for both immunizations, and ambient temperature.
 
+```{r}
+Secondary_Met2$Treatment[Secondary_Met2$Treatment == "TC"] <- "Cold"
+Secondary_Met2$Treatment[Secondary_Met2$Treatment == "eVLP+LPS"] <- "NoCo"
+
+Primary_Met$Treatment[Primary_Met$Treatment == "TC"] <- "Cold"
+Primary_Met$Treatment[Primary_Met$Treatment == "eVLP+LPS"] <- "NoCo"
+
+```
+
 
 
 ```{r}
