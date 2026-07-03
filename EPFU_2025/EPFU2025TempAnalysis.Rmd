@@ -1,5 +1,5 @@
 ---
-title: "MOCO 2025 Temperature Loggers Analysis"
+title: "EPFU 2025 Temperature Loggers Analysis"
 author: "Ashlyn Sak"
 date: "`r Sys.Date()`"
 output: github_document
@@ -30,6 +30,9 @@ if (!require("emmeans")) install.packages("emmeans"); library(emmeans)
 if (!require("multcomp")) install.packages("multcomp"); library(multcomp)
 if (!require("interactions")) install.packages("interactions"); library(interactions)
 if (!require("colorspace")) install.packages("colorspace"); library(colorspace)
+if (!require("broom")) install.packages("broom"); library(broom)
+if (!require("performance")) install.packages("performance"); library(performance)
+if (!require("MASS")) install.packages("MASS"); library(MASS)
 
 
 
@@ -124,10 +127,24 @@ Results <- Results |>
   mutate(Tnorm = mean(Temp_norm)) |> 
   ungroup()
 
+Results <- Results |> 
+  group_by(Bat_ID, ExperimentDay) |> 
+  mutate(Day_min = min(Temperature, na.rm = TRUE),
+         Day_max = max(Temperature, na.rm = TRUE),
+         Day_diff = Day_max - Day_min) |> 
+  ungroup()
+
+Results <- Results |> 
+  group_by(Bat_ID, ExperimentDay) |> 
+    mutate(
+    HyperAUC = sum(Chours[Temperature > Temp_norm], na.rm = TRUE),
+    HypoAUC = sum(Chours[Temperature < Temp_norm], na.rm = TRUE)) |> 
+  ungroup()
+
 Analysis_results <- Results |> 
   filter(grepl("13:50", DateTime),
-         valid_counts >= 130) |> 
-  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group, Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage , Tnorm) |> 
+         valid_counts >= 137) |> 
+  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group, Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage , Tnorm, Day_min, Day_max, HyperAUC, HypoAUC) |> 
   mutate(Bat_ID = as.factor(Bat_ID),
          DateType = as.factor(DateType),
          ExperimentDay = as.factor(ExperimentDay),
@@ -147,22 +164,45 @@ mutate(Treatment = fct_relevel(Treatment, "SHAM"),
        Bat_ID = fct_relevel(Bat_ID, "APS60113"))
 ```
 
-## First models
-*** before I add this to my thesis I need to figure out how to run a tukey test on it.
+## General Models
+Okay, first I just want to run some models to see things that might be affecting AUC like weight, sex, etc. These are things I might have to correct for before running my big analysis.
+
+I want to run a glm to see if the number of valid counts effects AUC.
+```{r}
+data_points_glm <- glm(Total_AUC ~ Bat_ID + valid_counts , data = Analysis_results)
+summary(data_points_glm)
+```
+I ran this excluding days missing up to 10% of time points and it effected AUC. So I lowered the cutoff to 5% and now it looks good.
+
+Looking at weight with Bat_ID as a baseline.
+```{r}
+weight_glm <- glm(Total_AUC ~ Bat_ID + Weight , data = Analysis_results)
+summary(weight_glm)
+```
+Significant but not surprising. I want to talk to Ken about this. I think having BatID as a baseline is best, but I originally ran it without it.
+
+Okay, now I am going to run sex, I honestly probably don't have enough statistical power for this, but I am going to run it anyways.
+```{r}
+sex_glm <- glm(Total_AUC ~ Sex, data = Analysis_results)
+summary(sex_glm)
+```
+No significant difference between AUC in males and females.
+
+Okay, I am going to look at handled vs nonhandled days because I am using AUC on non-handled days to calculate my tnorm. Also just generally interesting to see if there is a difference.
 ```{r}
 handled_model <- glm(Total_AUC ~ Bat_ID + Handled, data = Analysis_results)
 summary(handled_model)
 handling_tukey <- glht(handled_model, linfct = mcp(Handled = "Tukey"))
+tukey_handling_summary <- summary(handling_tukey)
 summary(handling_tukey)
 
-handled_results_df <- data.frame(Variable = row.names(handling_tukey), handling_tukey)
+handled_results_df <- tidy(tukey_handling_summary)
 
 write.csv(handled_results_df, "handled_model.csv", row.names = FALSE)
 ```
-Okay handling is significant. 
+Okay handling is significant. Not surprising.
 
-I am going to take AUC days bats were not handled and compare them to primary +3 and secondary +3. If there is no difference, I can group these days as non-handled 
-
+I am going to take AUC days bats were not handled and compare them to primary +3 and secondary +3. If there is no difference, I can group these days as non-handled. I am running this because for TABR, there was clear deep torpor usage on D24 (3 days after secondary) so I am thinking about keeping it as an intersting day. 
 ```{r}
 handling_check <- Analysis_results |> 
   filter(DateType %in% c("None", "Primary + 3", "Secondary + 3")) |> 
@@ -175,25 +215,18 @@ handle_check <- glm(Total_AUC ~ Bat_ID + DateType,
 summary(handle_check)
 ```
 Primary +3 is significantly different but not secondary +3. For that reason I am going to keep both as a handled day. 
+!!!!!!I want to explore this more and see if my group 1 bats have anything to do with why primary+3 is different because they were handled that day and group 2 bats werent and none of the groups were handled secondary +3. 
 
-I wanted to run a glm to see if the number of counts had an effect and it definitely does. I need to talk to Ken about how to deal with this...
-```{r}
-data_points_glm <- glm(Total_AUC ~ valid_counts , data = Analysis_results)
-summary(data_points_glm)
-```
-
-
-Looking at weight
-```{r}
-weight_glm <- glm(Total_AUC ~ Weight , data = Analysis_results)
-summary(weight_glm)
-```
-Significant but not surprising.
-
+Now running if weight depends on treatment. I think I will need to do more with this model though and look at change in weight rather than just weight itself.
 ```{r}
 weight_group_glm <- glm(Weight ~ Treatment, data = Analysis_results)
 summary(weight_group_glm)
+```
+Looks like weight is different in CP and CP+S groups compared to SHAM.
 
+
+Okay, now running some models to look at AUC with treatment and date type.
+```{r}
 treatment_glm <- glm(Total_AUC ~ DateType * Treatment, data = Analysis_results)
 summary(treatment_glm)
 em_interaction <- emmeans(treatment_glm, ~ Treatment | DateType)
@@ -205,6 +238,7 @@ glm_auc_txd <- as.data.frame(Treatxdatetype)
 
 write.csv(glm_auc_txd, "glm_auc_txd.csv", row.names = FALSE)
  
+#  adding weight into this model since we already established that it effects AUC
 treatment_glm2 <- glm(Total_AUC ~ Weight + DateType * Treatment, data = Analysis_results)
 summary(treatment_glm2)
 
@@ -218,9 +252,10 @@ Treatxdatetype2 <- summary(comps_treatment_glm2)
 glm_auc_txd2 <- as.data.frame(Treatxdatetype2)
 
 write.csv(glm_auc_txd2, "glm_auc_txd2.csv", row.names = FALSE)
-
 ```
 
+
+Rerunning the model above but including group. Because I had more bats in group 2 and group 1 bats were handled on D 3, 4 and 5 of the experiment but group 2 bats weren't there is likely a difference.
 ```{r}
 treatment_glm3 <- glm(Total_AUC ~ Group + Weight + DateType * Treatment, data = Analysis_results)
 summary(treatment_glm3)
@@ -235,8 +270,178 @@ Treatxdatetype3 <- summary(comps_treatment_glm3)
 glm_auc_txd3 <- as.data.frame(Treatxdatetype3)
 
 ```
+Okay, this is great, but its running a lot of interactions that I do not care about, so I want to only run interesting interactions.
 
-Putting this into my thesis!
+```{r}
+# 1. Create a combined grouping variable
+Analysis_results$Group_Combo <- factor(paste(Analysis_results$Treatment, Analysis_results$DateType, sep = "_"))
+
+# 2. Run the model with the combined variable instead of the separate ones
+treatment_glm4 <- glm(Total_AUC ~ Group + Weight + Group_Combo, data = Analysis_results)
+
+levels(Analysis_results$Group_Combo)
+```
+
+```{r}
+# Calculate the adjusted means for all 73 combinations
+all_model_means <- emmeans(treatment_glm4, ~ Group_Combo)
+
+all_pairs_tukey <- pairs(all_model_means, adjust = "tukey")
+
+# ==============================================================================
+# 4. SURGICAL STRIKES (SUBSET THEN PAIRS)
+# ==============================================================================
+
+### Hypothesis 1: Comparisons on Day 1 ###
+# First, slice out just the Day 1 groups you care about
+Primary1_model <- pairs(subset(all_model_means, 
+  Group_Combo %in% c("CS_Primary", "NoCo_Primary", "SHAM_Primary")))
+
+# Second, pair them up (R only calculates 3 comparisons here)
+#pairs(Primary1_model, adjust = "tukey")
+
+
+### Hypothesis 2: Comparisons on Day 2 ###
+# Slice out just the Day 2 groups you care about
+Primary2_model <- pairs(subset(
+  all_model_means, 
+  Group_Combo %in% c("CP_Primary", "CP+S_Primary", "NoCo_Primary", "CS_Primary")))
+
+# Pair them up
+#pairs(Primary2_model, adjust = "tukey")
+```
+
+```{r}
+Secondary1_model <- pairs(subset(all_model_means, 
+  Group_Combo %in% c("SHAM_Secondary", "NoCo_Secondary")))
+
+# Pair them up
+#pairs(Secondary1_model, adjust = "tukey")
+
+Secondary2_model <- pairs(subset(all_model_means, 
+  Group_Combo %in% c("NoCo_Secondary", "CP_Secondary")))
+
+# Pair them up
+#pairs(Secondary2_model, adjust = "tukey")
+
+Secondary3_model <- pairs(subset(all_model_means, 
+  Group_Combo %in% c("CP+S_Secondary", "CS_Secondary")))
+
+# Pair them up
+#pairs(Secondary3_model, adjust = "tukey")
+```
+
+```{r}
+None_model <- pairs(subset(all_model_means, 
+  Group_Combo %in% c("SHAM_None", "NoCo_None", "CP_None", "CS_None", "CP+S_None")))
+
+#pairs(None_model, adjust = "tukey")
+```
+
+```{r D1 Models} 
+D1_1 <- pairs(subset(all_model_means, 
+  Group_Combo %in% c("CS_Primary + 1", "NoCo_Primary + 1", "SHAM_Primary + 1")))
+
+# Second, pair them up (R only calculates 3 comparisons here)
+#pairs(D1_1, adjust = "tukey")
+
+
+### Hypothesis 2: Comparisons on Day 2 ###
+# Slice out just the Day 2 groups you care about
+D1_2 <- pairs(subset(
+  all_model_means, 
+  Group_Combo %in% c("CP_Primary + 1", "CP+S_Primary + 1", "NoCo_Primary + 1", "CS_Primary + 1")))
+
+# Pair them up
+#pairs(D1_2, adjust = "tukey")
+```
+
+```{r D2 Models} 
+D2_1 <- pairs(subset(all_model_means, 
+  Group_Combo %in% c("CS_Primary + 2", "NoCo_Primary + 2", "SHAM_Primary + 2")))
+
+# Second, pair them up (R only calculates 3 comparisons here)
+#pairs(D2_1, adjust = "tukey")
+
+
+### Hypothesis 2: Comparisons on Day 2 ###
+# Slice out just the Day 2 groups you care about
+D2_2 <- pairs(subset(
+  all_model_means, 
+  Group_Combo %in% c("CP_Primary + 2", "CP+S_Primary + 2", "NoCo_Primary + 2", "CS_Primary + 2")))
+
+# Pair them up
+#pairs(D2_2, adjust = "tukey")
+```
+
+```{r D3 Models} 
+D3_1 <- pairs(subset(all_model_means, 
+  Group_Combo %in% c("CS_Primary + 3", "NoCo_Primary + 3", "SHAM_Primary + 3")))
+
+# Second, pair them up (R only calculates 3 comparisons here)
+#pairs(D3_1, adjust = "tukey")
+
+
+### Hypothesis 2: Comparisons on Day 2 ###
+# Slice out just the Day 2 groups you care about
+D3_2 <- pairs(subset(
+  all_model_means, 
+  Group_Combo %in% c("CP_Primary + 3", "CP+S_Primary + 3", "NoCo_Primary + 3", "CS_Primary + 3")))
+
+# Pair them up
+#pairs(D3_2, adjust = "tukey")
+```
+
+```{r}
+my_selected_comparisons <- rbind(None_model, Primary1_model, Primary2_model, D1_1, D1_2, D2_1, D2_2, D3_1, D3_2, Secondary1_model, Secondary2_model, Secondary3_model)
+
+# 3. Run ONE unified Tukey test across just this curated pool
+summary(my_selected_comparisons, adjust = "tukey")
+```
+
+
+I don't really want to go too far down running these models because I know some bats did not use torpor while in their thermal challenge. So p-values could be misleading since they are still in their assigned groups and not grouped by what they did.
+
+## Max and Min models
+
+```{r}
+cor(Analysis_results[, c('Total_AUC', 'Day_max', 'Day_min')])
+```
+so minimum temp and AUC are probably correlated. 
+
+```{r}
+Temp_model1 <- glm(Total_AUC ~ Bat_ID + Day_max + Day_min, data = Analysis_results)
+summary(Temp_model1)
+
+stepAIC(Temp_model1, direction = "backward")
+
+```
+
+## Hyper and Hypo AUC
+
+```{r}
+cor(Analysis_results[, c('Total_AUC', 'HyperAUC', 'HypoAUC')])
+```
+
+```{r}
+hypo_glm <- glm(HypoAUC ~ Group + Weight + DateType * Treatment, data = Analysis_results)
+summary(hypo_glm)
+
+hypo_means <- emmeans(hypo_glm, ~ Treatment | DateType)
+
+hypo_comps <- pairs(hypo_means, adjust = "tukey")
+ summary(hypo_comps) 
+```
+
+```{r}
+hyper_glm <- glm(HyperAUC ~ Group + Weight + DateType * Treatment, data = Analysis_results)
+summary(hyper_glm)
+
+hyper_means <- emmeans(hyper_glm, ~ Treatment | DateType)
+
+hyper_comps <- pairs(hyper_means, adjust = "tukey")
+ summary(hyper_comps) 
+```
 
 
 I want to look at AUC for bats in basal TC and factor in cage.
@@ -246,6 +451,8 @@ basal_analysis <- Analysis_results |>
 
 basal <- glm(Total_AUC ~ Cage, data = basal_analysis)
 summary(basal)
+basal_comps <- glht(basal, linfct = mcp(Cage = "Tukey"))
+summary(basal_comps)
 ```
 So it looks like cage did not effect AUC.
 

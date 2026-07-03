@@ -263,7 +263,6 @@ summary(Cal_1_results)
 ```
 I think this data looks good. I took a look at the dataset and saw that the range is different, the low and high looks like they were calculated correctly. 
 
-
 ### Calibration 2
 Okay, so for this one, I am going to take the three loggers that went through both calibrations. Using the first calibration, the data from the second calibration should be true values. I am going to take these temperatures during the second calibration and use them to calibrate the second batch. 
 ```{r}
@@ -602,6 +601,7 @@ final_results_ <- final_results_ %>%
     Bat_ID == "APS36026" & NumberDate == 1757651401  ~ NA_real_,
     Bat_ID == "APS36026" & NumberDate >= 1757300401 & NumberDate <= 1757307001 ~ NA_real_,
     Bat_ID == "APS36026" & NumberDate >= 1757649001 & NumberDate <= 1757649601 ~ NA_real_,
+    Bat_ID == "APS36007" & NumberDate >= 1757200801 & NumberDate <= 1757253001   ~ NA_real_,
     TRUE ~ Temperature # Keeps all other temperatures the same
   ))
 ```
@@ -1248,6 +1248,9 @@ write_tsv(Primary_TC_results, file = "EPFU2025Primary_TC.tsv")
 write_tsv(Basal_TC_results, file = "EPFU2025Basal_TC.tsv")
 write_tsv(Secondary_TC_results, file = "EPFU2025Secondary_TC.tsv")
 write_tsv(Results, file = "EPFU2025Results_Analysis.tsv")
+
+write.csv(budha1, file = "EPFU2025_TCBats.csv")
+write.csv(budha2, file = "EPFU2025_AllBats.csv")
 
 ```
 
