@@ -42,7 +42,7 @@ Then I will plot the pre- and post- boost data for each individual.
 
 ```{r}
 Metadata <- read_excel("EPFU 2025 BUTT Assignments.xlsx", sheet = "Loggers",  # read in metadata for ibuttons
-    range = "A1:M58", na = "NA")
+    range = "A1:O58", na = "NA")
 
 glimpse(Metadata) # check formatting
 
@@ -1105,24 +1105,29 @@ Results_Analysis <- Results_Analysis |>
 Okay, I want to include handling time now. 
 
 ```{r}
-Handling <- read_excel("EPFU 2025 Bleeding.xlsx", # read in weight data
-    range = "A1:O421", na = "NA") |> 
+EPFU_2025_Bleeding <- read_excel("EPFU 2025 Bleeding.xlsx", 
+    col_types = c("text", "date", "text", 
+        "date", "text", "date", "date", "numeric", 
+        "text", "numeric", "date", "date", 
+        "date", "date", "text")) |> 
   rename(ExperimentDay = "Experiment Day",
-         Bat_ID = "Pittag") |> 
-mutate(
-    # Subtracting the "origin date" from the date-time object
-    # This leaves you with the duration of time that passed since midnight
-    `Handling Time` = as.duration(`Handling Time` - as.POSIXct("1899-12-31", tz = "UTC"))
-  )
+         Bat_ID = "Pittag")
 
-Handling <- Handling |> 
-  mutate(DisplayTime = as.period(`Handling Time`))
+Handling <- EPFU_2025_Bleeding |> 
+  mutate(Handling_duration = 
+           case_when(Location != "Incubator" & !is.na(`Inc. Start`) ~ 
+              as.duration(`Inc. Start` - `Capture Time`),
+              TRUE ~ as.duration(`Handling End`- `Capture Time`))) |>   
+  mutate(Handling_minutes = as.integer(Handling_duration/dminutes(1)))
+
+head(Handling$`Handling Time`)
+glimpse(Handling)
 
 getting_there <- Results_Analysis |> 
-  left_join(Handling |> select(Bat_ID, ExperimentDay, DisplayTime), join_by(Bat_ID, ExperimentDay))
+  left_join(Handling |> select(Bat_ID, ExperimentDay, Handling_minutes), join_by(Bat_ID, ExperimentDay))
 
 Results <- getting_there |> 
-  select(Bat_ID, DateTime, NumberDate, Temperature, DateType,Treatment, Group, Sex, Handled, ExperimentDay, Cage, DisplayTime)
+  select(Bat_ID, DateTime, NumberDate, Temperature, DateType,Treatment, Group, Sex, Handled, ExperimentDay, Cage, Handling_minutes, Capture_Site)
 ```
 
 ## Weight Data

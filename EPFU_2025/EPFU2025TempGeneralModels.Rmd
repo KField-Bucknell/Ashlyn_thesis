@@ -44,7 +44,7 @@ conflicts_prefer(lubridate::days)
 
 Check to make sure that all of those packages are needed, once I am done.
 
-This code is going to be AUC models. In EPFU2025TempWrangling, I calibrated and trimmed the data as well as dropping any bad values. In EPFU2025TempGeneralModels, I ran models to see what types variables affected AUC so I know what I need to include in my models. Both weight and group had a significant affect on AUC so I want to be sure to correct for these differences.
+The goal here is to plot the pre- and post- boost data for each individual.
 
 ## Metadata
 
@@ -65,7 +65,26 @@ I am going to load in my data and metadata for both immunizations
 Primary_Results <- read.delim("EPFU2025PrimaryTemperature.tsv", # read in primary results
      na = "NA")
 
+Secondary_Results <- read.delim("EPFU2025SecondaryTemperature.tsv", # read in secondary results 
+     na = "NA")
 
+Bat_Results <- read.delim("EPFU2025BatResults.tsv", # read in secondary results 
+     na = "NA")
+
+Clean_Results <- read.delim("EPFU2025Cleaned_Results.tsv", # read in secondary results 
+     na = "NA")
+
+Basal_TC <- read.delim("EPFU2025Basal_TC.tsv", # read in secondary results 
+     na = "NA")
+
+Primary_TC <- read.delim("EPFU2025Primary_TC.tsv", # read in secondary results 
+     na = "NA")
+
+Secondary_TC <- read.delim("EPFU2025Secondary_TC.tsv", # read in secondary results 
+     na = "NA")
+
+Results <- read.delim("EPFU2025Results_Analysis.tsv",
+                      na = "NA") 
 ```
 
 Make values for bat names
@@ -74,6 +93,203 @@ BasalNames <- unique(Basal_TC$Bat_ID)
 SecondaryBatNames <- unique(Secondary_Results$Bat_ID)
 PrimaryBatNames <- unique(Primary_Results$Bat_ID)
 ResultsNames <- unique(Results$Bat_ID)
+```
+
+## Average and running temp
+
+```{r}
+Results <- Results |> 
+  group_by(Bat_ID) |> 
+  mutate(Temp_norm = mean(Temperature[DateType == "None" &
+                                      Temperature > 31], na.rm = TRUE)) |> 
+  ungroup()
+
+Results <- Results |> 
+  # 1. Calculate the difference for every time point
+  mutate(Temp_Diff = Temperature - Temp_norm) |> 
+  mutate(Chours = Temp_Diff * 0.1667) |> 
+    # 2. Sort chronologically by bat and time to ensure cumsum adds in the right order
+  # (Replace 'DateTime' with the actual name of your timestamp column)
+  arrange(Bat_ID, NumberDate) |> 
+    # 3. Group by the Bat and your existing Experiment Day column
+  # (Replace 'Exp_Day' with the actual name of your D-5, D0, D1 column)
+  group_by(Bat_ID, ExperimentDay) |> 
+    # 4. Calculate the running sum. Because of the group_by, 
+  # it will automatically reset to 0 at the start of each experiment day.
+  mutate(running_AUC = cumsum(ifelse(is.na(Chours), 0, Chours)),
+    Total_AUC = sum(Chours, na.rm = TRUE),
+         valid_counts = sum(!is.na(Chours))) |> 
+    # 5. Clean up grouping
+  ungroup()
+
+Results <- Results |> 
+  group_by(Treatment) |> 
+  mutate(Tnorm = mean(Temp_norm)) |> 
+  ungroup()
+
+Results <- Results |> 
+  group_by(Bat_ID, ExperimentDay) |> 
+  mutate(Day_min = min(Temperature, na.rm = TRUE),
+         Day_max = max(Temperature, na.rm = TRUE),
+         Day_diff = Day_max - Day_min) |> 
+  ungroup()
+
+Results <- Results |> 
+  group_by(Bat_ID, ExperimentDay) |> 
+    mutate(
+    HyperAUC = sum(Chours[Temperature > Temp_norm], na.rm = TRUE),
+    HypoAUC = sum(Chours[Temperature < Temp_norm], na.rm = TRUE)) |> 
+  ungroup()
+
+Analysis_results <- Results |> 
+  filter(grepl("13:50", DateTime),
+         valid_counts >= 137) |> 
+  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group, Capture_Site, Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage , Tnorm, Day_min, Day_max, HyperAUC, HypoAUC, Handling_minutes) |> 
+  mutate(Bat_ID = as.factor(Bat_ID),
+         DateType = as.factor(DateType),
+         ExperimentDay = as.factor(ExperimentDay),
+         Sex = as.factor(Sex), 
+         Treatment = as.factor(Treatment), 
+         Group = as.factor(Group),
+         Handled = as.factor(Handled), 
+         Cage = as.factor(Cage))
+
+ten_percent_Analysis_results <- Results |> 
+  filter(grepl("13:50", DateTime),
+         valid_counts >= 130) |> 
+  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group,Capture_Site,  Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage , Tnorm, Day_min, Day_max, HyperAUC, HypoAUC, Handling_minutes) |> 
+  mutate(Bat_ID = as.factor(Bat_ID),
+         DateType = as.factor(DateType),
+         ExperimentDay = as.factor(ExperimentDay),
+         Sex = as.factor(Sex), 
+         Treatment = as.factor(Treatment), 
+         Group = as.factor(Group),
+         Handled = as.factor(Handled), 
+         Cage = as.factor(Cage))
+
+glimpse(Analysis_results)
+```
+
+```{r}
+Analysis_results <- Analysis_results |> 
+mutate(Treatment = fct_relevel(Treatment, "SHAM"),
+         DateType = fct_relevel(DateType, "None"), 
+       Bat_ID = fct_relevel(Bat_ID, "APS60113"))
+```
+
+## General Models
+Okay, first I just want to run some models to see things that might be affecting AUC like weight, sex, etc. These are things I might have to correct for before running my big analysis.
+
+### Valid Counts
+I want to run a glm to see if the number of valid counts effects AUC.
+```{r}
+data_points_glm <- glm(Total_AUC ~ Bat_ID + valid_counts , data = Analysis_results)
+data_points_glm2 <- glm(Total_AUC ~ Bat_ID + valid_counts , data = ten_percent_Analysis_results)
+
+summary(data_points_glm)
+summary(data_points_glm2)
+
+```
+I ran this excluding days missing up to 10% of time points and it effected AUC. So I lowered the cutoff to 5% and now it looks good. Going forward I am going to use analysis_results
+
+### Weight Models
+Looking at weight with Bat_ID as a baseline.
+```{r}
+weight_glm <- glm(Total_AUC ~ Bat_ID + Weight , data = Analysis_results)
+summary(weight_glm)
+```
+Significant but not surprising. I want to talk to Ken about this. I think having BatID as a baseline is best, but I originally ran it without it.
+
+DeeAnn 'balanced' the bats across treatment group, but I am actually interested in if their weights on D0 differed across groups. So I am going to filter only primary days and then run weight~ treatment
+```{r}
+Primary_Data <- Analysis_results |> 
+  filter(DateType == "Primary")
+
+weight_glm2 <- glm(Weight ~ Treatment , data = Primary_Data)
+summary(weight_glm2)
+```
+Cool no difference in weight at the beginning of the experiment. Later on I want to look at differences in weight between experiment days.
+
+### Sex
+Okay, now I am going to run sex, I honestly probably don't have enough statistical power for this, but I am going to run it anyways.
+```{r}
+sex_glm <- glm(Total_AUC ~ Sex, data = Analysis_results)
+summary(sex_glm)
+```
+No significant difference between AUC in males and females.This could be due to small sample sizes and not having the statistical power though.
+
+### Group
+Next I am going to see if group affects AUC. Because group 1 had fewer individuals which means less handling time, I do expect group to affect AUC. 
+```{r}
+group_glm <- glm(Total_AUC ~ Group, data = Analysis_results)
+summary(group_glm)
+```
+Yeah that is very significant. Which means I should probably factor in group in all my models. 
+
+### Capture Site
+Next I am going to see if capture site has an affect on AUC.
+```{r}
+site_glm <- glm(Total_AUC ~ Capture_Site, data = Analysis_results)
+summary(site_glm)
+```
+No effect. My one bat from the Troxville house was removed from the study because the logger failed.
+
+## Handled Models
+Okay, I am going to look at handled vs nonhandled days because I am using AUC on non-handled days to calculate my tnorm. Also just generally interesting to see if there is a difference.
+```{r}
+handled_model <- glm(Total_AUC ~ Bat_ID + Handled, data = Analysis_results)
+summary(handled_model)
+handling_tukey <- glht(handled_model, linfct = mcp(Handled = "Tukey"))
+tukey_handling_summary <- summary(handling_tukey)
+summary(handling_tukey)
+
+handled_results_df <- tidy(tukey_handling_summary)
+
+write.csv(handled_results_df, "handled_model.csv", row.names = FALSE)
+```
+Okay handling is significant. Not surprising.
+
+I am going to take AUC days bats were not handled and compare them to primary +3 and secondary +3. If there is no difference, I can group these days as non-handled. I am running this because for TABR, there was clear deep torpor usage on D24 (3 days after secondary) so I am thinking about keeping it as an intersting day. 
+```{r}
+handling_check <- Analysis_results |> 
+  filter(DateType %in% c("None", "Primary + 3", "Secondary + 3")) |> 
+  mutate(DateType = factor(DateType),
+    DateType = relevel(DateType, ref = "None"))
+
+handle_check <- glm(Total_AUC ~ Bat_ID + DateType, 
+                 data = handling_check) 
+
+summary(handle_check)
+```
+Primary +3 is significantly different but not secondary +3. For that reason I am going to keep both as a handled day. 
+I want to explore this more and see if my group 1 bats have anything to do with why primary+3 is different because they were handled that day and group 2 bats werent and none of the groups were handled secondary +3. 
+
+```{r}
+handle_check2 <- glm(Total_AUC ~ Group * DateType, 
+                 data = handling_check) 
+
+summary(handle_check2)
+
+emmip(handle_check2, Group ~ DateType)
+```
+Okay, so GP 1 had a significantly higher Primary +3 than Gp2. 
+
+I want to see if handling time (time bats were removed from the flight cage) has an affect on auc. I know when we put bats in the paper bags, they calmed down and usually just went torpid. But being in the paper bag and torpid might be different than what they would have done if they were not in the paper bags. 
+```{r}
+handle_time <- glm(Total_AUC ~ Handling_minutes, 
+                 data = Analysis_results) 
+
+summary(handle_time)
+```
+Okay so handling time did not affect their AUC.
+
+## conclusions
+Okay, I think I ran models on the variables that could be affecting AUC. I ran Valid counts to make sure having some days that do not have complete data does not affect AUC. I ran weight, sex, group, and capture site. Weight and group both had a significant affect on AUC so I will be sure to factor this in to my models. Both sex and capture site did not have a significant affect so they can be left out of the model. Lastly I looked at handling. Days bats were handled were significantly different than days they were not. Primary + 3 was significantly different from handled days but secondary +3 was not, becasue of this, I kept both as 'imteresting' days instead of grouping them in with boring days. Group 1 had a significanlty higher AUC than group 2 on day Primary+3 this could potentially be because they were handled on that day but group 2 was not. 
+
+This is where I am going to end this RMD. My actual analysis will be in another RMD and I think I will split that up into 2 different ones. Proabably AUC models and other models. We'l see. I am going to save my results as a tsv. 
+
+```{r}
+write_tsv(Analysis_results, file = "EPFU2025Analysis_Results.tsv")
 ```
 
 Now running if weight depends on treatment. I think I will need to do more with this model though and look at change in weight rather than just weight itself.
