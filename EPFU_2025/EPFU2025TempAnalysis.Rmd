@@ -49,39 +49,58 @@ This code is going to be AUC models. In EPFU2025TempWrangling, I calibrated and 
 ## Metadata
 
 ```{r}
-Metadata <- read.delim("EPFU2025Metadata.tsv", # read in metadata for ibuttons
-     na = "NA")
+Analysis_results <- read.delim("EPFU2025Analysis_Results.tsv", # read in metadata for ibuttons
+     na = "NA") 
 
-glimpse(Metadata) # check formatting
+glimpse(Analysis_results) # check formatting
 
-Metadata$Bat_ID = as.character(Metadata$Bat_ID) # change Bat_ID to a character
+Analysis_results$Bat_ID = as.character(Analysis_results$Bat_ID) # change Bat_ID to a character
 
-glimpse(Metadata) # check formatting again
+glimpse(Analysis_results) # check formatting again
 ```
 
 I am going to load in my data and metadata for both immunizations
 
-```{r}
-Primary_Results <- read.delim("EPFU2025PrimaryTemperature.tsv", # read in primary results
-     na = "NA")
-
-
-```
-
 Make values for bat names
 ```{r}
-BasalNames <- unique(Basal_TC$Bat_ID)
-SecondaryBatNames <- unique(Secondary_Results$Bat_ID)
-PrimaryBatNames <- unique(Primary_Results$Bat_ID)
-ResultsNames <- unique(Results$Bat_ID)
+ResultsNames <- unique(Analysis_results$Bat_ID)
 ```
 
-Now running if weight depends on treatment. I think I will need to do more with this model though and look at change in weight rather than just weight itself.
+Okay, first thing I am going to do is group all CS and NoCo and CP and CP+S into two groups before secondary. I am then only going to pull out days before Secondary.
 ```{r}
-weight_group_glm <- glm(Weight ~ Treatment, data = Analysis_results)
-summary(weight_group_glm)
+Analysis_results <- Analysis_results |> 
+  mutate(Primary_Treatment = case_when(Treatment %in% c("CP+S" , "CP") ~  "Primary_Cold",
+         Treatment %in% c("CS" , "NoCo") ~ "Primary_NoCo",
+         TRUE ~ "SHAM"))
 ```
-Looks like weight is different in CP and CP+S groups compared to SHAM.
+I am also going to make two additional columns. One that is regular treatment+datetype and another that is 'primary treatment'+ datetype. 
+
+```{r}
+Analysis_results$Group_Combo <- factor(paste(Analysis_results$Treatment, Analysis_results$DateType, sep = "_"))
+
+Analysis_results$Primary_Combo <- factor(paste(Analysis_results$Primary_Treatment, Analysis_results$DateType, sep = "_"))
+
+```
+
+```{r}
+Primary_Results <- Analysis_results |> 
+  filter(!ExperimentDay %in% c("D20", "D21", "D22", "D23", "D24", "D25", "D26", "D27", "D28", "D29", "D30", "D31", "D32", "D33", "D34", "D35", "D36"))
+```
+
+## Primary Models
+Okay, I am going to run some primary models now.
+```{r}
+primary_glm <- glm(Total_AUC ~ Bat_ID + Group + Weight + Primary_Combo, data = Primary_Results)
+
+primary_emmeans <- emmeans(primary_glm, ~ Primary_Combo)
+
+levels(Primary_Results$Primary_Combo)
+
+primary_subsets <- subset(primary_emmeans, Primary_Combo %in%)
+
+#primary_subsets <- list("Primary_ShamVsNoCo" = as.numeric(Primary_Combo %in% "SHAM_Primary") -
+#                                                as.numeric(Primary_Combo %in% "Primary_NoCo_Primary""))
+```
 
 
 Okay, now running some models to look at AUC with treatment and date type.
