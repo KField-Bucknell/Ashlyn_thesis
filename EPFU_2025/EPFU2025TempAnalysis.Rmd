@@ -84,22 +84,200 @@ Analysis_results$Primary_Combo <- factor(paste(Analysis_results$Primary_Treatmen
 
 ```{r}
 Primary_Results <- Analysis_results |> 
-  filter(!ExperimentDay %in% c("D20", "D21", "D22", "D23", "D24", "D25", "D26", "D27", "D28", "D29", "D30", "D31", "D32", "D33", "D34", "D35", "D36"))
+  filter(!ExperimentDay %in% c("D20", "D21", "D22", "D23", "D24", "D25", "D26", "D27", "D28", "D29", "D30", "D31", "D32", "D33", "D34", "D35", "D36"),
+         !DateType %in% c("Basal TC-1", "Basal TC", "Basal TC + 1", "Pre"))
+
+Primary_Results <- droplevels(Primary_Results)
+levels(Primary_Results$Primary_Combo)
+
 ```
 
 ## Primary Models
 Okay, I am going to run some primary models now.
+
 ```{r}
 primary_glm <- glm(Total_AUC ~ Bat_ID + Group + Weight + Primary_Combo, data = Primary_Results)
 
 primary_emmeans <- emmeans(primary_glm, ~ Primary_Combo)
 
-levels(Primary_Results$Primary_Combo)
+primary_subset <- list(
+  "SvN_P" = c(0,0,0,0,0,0,0,1,0,0,0,0,0,-1,0,0,0,0),
+  "SvN_1" = c(0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,-1,0,0),
+  "SvN_2" = c(0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,-1,0),
+  "SvN_3" = c(0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,-1),
+  "NvC_P" = c(0,1,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0,0),
+  "NvC_1" = c(0,0,0,1,0,0,0,0,0,-1,0,0,0,0,0,0,0,0),
+  "NvC_2" = c(0,0,0,0,1,0,0,0,0,0,-1,0,0,0,0,0,0,0),
+  "NvC_3" = c(0,0,0,0,0,1,0,0,0,0,0,-1,0,0,0,0,0,0),
+  "SvN_None" = c(0,0,0,0,0,0,1,0,0,0,0,0,-1,0,0,0,0,0),
+  "NvC_None" = c(1,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0,0,0),
+  "SvN_-1" = c(0,0,0,0,0,0,0,0,1,0,0,0,0,0,-1,0,0,0),
+  "NvC_-1" = c(0,0,1,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0))
 
-primary_subsets <- subset(primary_emmeans, Primary_Combo %in%)
+# 3. Run the contrast. 
+# R will automatically apply these exact vectors to Males, and then to Females.
+contrast(primary_emmeans, method = primary_subset, adjust = "bonferroni")
+```
+Okay, I am getting NAs and I think it is because of Bat_ID
+I am going to rerun the model without Bat_ID
+```{r}
+primary_glm2 <- glm(Total_AUC ~ Group + Weight + Primary_Combo, data = Primary_Results)
 
-#primary_subsets <- list("Primary_ShamVsNoCo" = as.numeric(Primary_Combo %in% "SHAM_Primary") -
-#                                                as.numeric(Primary_Combo %in% "Primary_NoCo_Primary""))
+primary_emmeans2 <- emmeans(primary_glm2, ~ Primary_Combo)
+
+contrast(primary_emmeans2, method = primary_subset, adjust = "bonferroni")
+```
+Okay this ran and the significant values make sense; however, after asking some questions with gemini I don't think I can ignore Bat_ID because the glm assumes that every row is independent of other rows. Since bat_id is found multiple times across rows they are not independent of each other. It wants me to run a mixed effects model. I know Ken and I talked about this and he doesnt want me to run one, but I am going to anyways.
+
+```{r}
+primary_mixed <- lmer(Total_AUC ~ Primary_Combo + Weight + (1 | Group / Bat_ID), 
+                      data = Primary_Results)
+
+# Check the summary
+summary(primary_mixed)
+
+primarymixed_emmeans <- emmeans(primary_mixed, ~ Primary_Combo)
+
+# 2. Run your custom contrasts
+contrast(primarymixed_emmeans, method = primary_subset, adjust = "bonferroni")
+```
+Okay, this shows that there is no statistically significant difference between sham and noco for any primary days including non-handled days. Bats that were cold at primary were significantly different than noco bats on primary which makes sense, but also on Primary +2 which is interesting.
+
+
+### Hyper/Hypo AUC
+I am going to run the same models with Hypo and Hyper AUC. I am doing this because I want to see if immunized bats had a febrile response and if they did, if the thermal challenge affected that response. The way AUC is calculated currently 'cancels' the extreme values out.
+
+```{r}
+primary_hypo <- glm(HypoAUC ~ Group + Weight + Primary_Combo, data = Primary_Results)
+
+p_hypo_emmeans <- emmeans(primary_hypo, ~ Primary_Combo)
+
+contrast(p_hypo_emmeans, method = primary_subset, adjust = "bonferroni")
+```
+
+```{r}
+primary_hyper <- glm(HyperAUC ~ Group + Weight + Primary_Combo, data = Primary_Results)
+
+p_hyper_emmeans <- emmeans(primary_hyper, ~ Primary_Combo)
+
+contrast(p_hyper_emmeans, method = primary_subset, adjust = "bonferroni")
+```
+Okay, this is very interesting. 
+
+```{r}
+hyper_mixed <- lmer(HyperAUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
+                      data = Primary_Results)
+
+# Check the summary
+summary(hyper_mixed)
+
+hypermixed_emmeans <- emmeans(hyper_mixed, ~ Group_Combo)
+
+levels(hypermixed_emmeans)
+
+# 2. Run your custom contrasts
+contrast(hypermixed_emmeans, method = primary_subset, adjust = "bonferroni")
+```
+
+## Secondary Models
+
+Okay, now I am going to run the same things but for secondary models. I need to decide if I should run this model with their original treatment groups or their 'this is what they actually did groups' since I have some bats that did not go cold in the primary thermal challenge.
+
+I am going to look at a histogram and see if I can tell which bats used torpor or not. I am going to look at both total AUC and hypoAUC. Just in case there are some bats that used torpor, but if they remained euthermic or even had a fever at some point during the day, their total AUC might not be as low.
+
+```{r}
+# 1. Visualize the distribution to find the "cut point"
+Primary_only_results <- Analysis_results |> 
+  filter(DateType == "Primary")
+
+hist(Primary_only_results$Total_AUC, breaks = 20, main = "Distribution of Primary Torpor")
+hist(Primary_only_results$HypoAUC, breaks = 20, main = "Hypo AUC")
+
+```
+I talked to Ken about this and the bats did not go cold during the primary thermal challenge still experienced different energetic requirements that bats that were not cold at primary. For that reason, we should not group them together for the secondary analysis even if they were not cold at the primary.
+
+```{r}
+Secondary_Results <- Analysis_results |> 
+  filter(!ExperimentDay %in% c("D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12", "D13", "D14", "D15", "D16", "D17", "D18", "D19", "D-1"),
+         !DateType %in% c("Basal TC-1", "Basal TC", "Basal TC + 1", "Pre"))
+
+secondary_bats <- Secondary_Results %>%
+  filter(ExperimentDay == "D21") %>%
+  pull(Bat_ID) %>%
+  unique()
+
+# 2. Keep all rows for those bats across all days
+Secondary_Results_filtered <- Secondary_Results %>%
+  filter(Bat_ID %in% secondary_bats)
+
+Secondary_Results <- droplevels(Secondary_Results)
+levels(Secondary_Results$Group_Combo)
+```
+
+I am going to run the same models for seconary as I did for primary
+```{r}
+secondary_glm <- glm(Total_AUC ~ Bat_ID + Group + Weight + Group_Combo, data = Secondary_Results)
+
+secondary_emmeans <- emmeans(secondary_glm, ~ Group_Combo)
+
+secondary_subset <- list(
+  "SvN_S" = c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0,0,0,0),
+"SvN_1"= c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0,0),
+"SvN_2"= c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0),
+"SvN_3"= c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1),
+"SvN_-1"= c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0,0,0),
+"SvN_None"= c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0,0,0,0,0),
+"NvCP_S" = c(0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0,0,0),
+"NvCP_1"= c(0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0),
+"NvCP_2"= c(0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,0),
+"NvCP_3"= c(0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,0),
+"NvCP_-1"= c(0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0,0),
+"NvCP_None"= c(0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPSvCS_S"= c(0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPSvCS_1"= c(0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPSvCS_2"= c(0,0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPSvCS_3"= c(0,0,0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPSvCS_-1"= c(0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPSvCS_None"= c(0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPvCPS_S"= c(0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPvCPS_1"= c(0,0,0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPvCPS_2"= c(0,0,0,0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPvCPS_3" = c(0,0,0,0,0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPvCPS_-1"= c(0,0,0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"CPvCPS_None" = c(0,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+"NvCS_S"= c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0,0,0),
+"NvCS_1"= c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0),
+"NvCS_2" = c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,0),
+"NvCS_3" = c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0,0,0,0,0,0,0),
+"NvCS_-1"= c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0,0),
+"NvCS_None" = c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,0,0,0,0,0))
+
+# 3. Run the contrast. 
+# R will automatically apply these exact vectors to Males, and then to Females.
+contrast(secondary_emmeans, method = secondary_subset, adjust = "bonferroni")
+```
+Okay, I am getting NAs and I think it is because of Bat_ID
+I am going to rerun the model without Bat_ID
+```{r}
+secondary_glm2 <- glm(Total_AUC ~ Group + Weight + Group_Combo, data = Secondary_Results_filtered)
+
+secondary_emmeans2 <- emmeans(secondary_glm2, ~ Group_Combo)
+
+contrast(secondary_emmeans2, method = secondary_subset, adjust = "bonferroni")
+```
+Okay this ran and the significant values make sense; however, after asking some questions with gemini I don't think I can ignore Bat_ID because the glm assumes that every row is independent of other rows. Since bat_id is found multiple times across rows they are not independent of each other. It wants me to run a mixed effects model. I know Ken and I talked about this and he doesnt want me to run one, but I am going to anyways.
+
+```{r}
+secondary_mixed <- lmer(Total_AUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
+                      data = Secondary_Results_filtered)
+
+# Check the summary
+summary(secondary_mixed)
+
+secondarymixed_emmeans <- emmeans(secondary_mixed, ~ Group_Combo)
+
+# 2. Run your custom contrasts
+contrast(secondarymixed_emmeans, method = secondary_subset, adjust = "bonferroni")
 ```
 
 
