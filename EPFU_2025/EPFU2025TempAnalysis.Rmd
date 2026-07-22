@@ -162,16 +162,16 @@ p_hyper_emmeans <- emmeans(primary_hyper, ~ Primary_Combo)
 
 contrast(p_hyper_emmeans, method = primary_subset, adjust = "bonferroni")
 ```
-Okay, this is very interesting. 
+Okay, this is very interesting. I am going to run this as a mixed effects model just so I am including Bat_ID still
 
 ```{r}
-hyper_mixed <- lmer(HyperAUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
+hyper_mixed <- lmer(HyperAUC ~ Primary_Combo + Weight + (1 | Group / Bat_ID), 
                       data = Primary_Results)
 
 # Check the summary
 summary(hyper_mixed)
 
-hypermixed_emmeans <- emmeans(hyper_mixed, ~ Group_Combo)
+hypermixed_emmeans <- emmeans(hyper_mixed, ~ Primary_Combo)
 
 levels(hypermixed_emmeans)
 
@@ -265,11 +265,167 @@ secondary_emmeans2 <- emmeans(secondary_glm2, ~ Group_Combo)
 
 contrast(secondary_emmeans2, method = secondary_subset, adjust = "bonferroni")
 ```
-Okay this ran and the significant values make sense; however, after asking some questions with gemini I don't think I can ignore Bat_ID because the glm assumes that every row is independent of other rows. Since bat_id is found multiple times across rows they are not independent of each other. It wants me to run a mixed effects model. I know Ken and I talked about this and he doesnt want me to run one, but I am going to anyways.
 
+Running mixed effects model.. 
 ```{r}
 secondary_mixed <- lmer(Total_AUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
                       data = Secondary_Results_filtered)
+
+# Check the summary
+summary(secondary_mixed)
+
+secondarymixed_emmeans <- emmeans(secondary_mixed, ~ Group_Combo)
+
+# 2. Run your custom contrasts
+contrast(secondarymixed_emmeans, method = secondary_subset, adjust = "bonferroni")
+```
+So there is no statistically difference in AUC between SHAM and NoCo, CP+S and CS, or NoCo and CP on any day. CP+S had a significantly lower AUC than CP on D21 and CS had a significantly lower AUC than Noco on D21. 
+
+### Hyper/Hypo Models
+I am going to run the same models with Hypo and Hyper AUC. I am doing this because I want to see if immunized bats had a febrile response and if they did, if the thermal challenge affected that response. The way AUC is calculated currently 'cancels' the extreme values out.
+
+```{r}
+secondary_hypo <- glm(HypoAUC ~ Group + Weight + Group_Combo, data = Secondary_Results_filtered)
+
+s_hypo_emmeans <- emmeans(secondary_hypo, ~ Group_Combo)
+
+contrast(s_hypo_emmeans, method = secondary_subset, adjust = "bonferroni")
+```
+**I tried running this on hyper and i was getting an error. I think the error was because variance for hyper was almost 0, so they model was not able to factor in group and bat_id as a random effect.**
+```{r}
+s_hypo_mixed <- lmer(HypoAUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
+                      data = Secondary_Results_filtered)
+
+# Check the summary
+summary(s_hypo_mixed)
+
+s_hypo_emmeans <- emmeans(s_hypo_mixed, ~ Group_Combo)
+
+# 2. Run your custom contrasts
+contrast(s_hypo_emmeans, method = secondary_subset, adjust = "bonferroni")
+```
+
+
+```{r}
+secondary_hyper <- glm(HyperAUC ~ Group + Weight + Group_Combo, data = Secondary_Results_filtered)
+
+s_hyper_emmeans <- emmeans(secondary_hyper, ~ Group_Combo)
+
+contrast(s_hyper_emmeans, method = secondary_subset, adjust = "bonferroni")
+```
+
+```{r}
+s_hyper_mixed <- lmer(HyperAUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
+                      data = Secondary_Results_filtered)
+
+# Check the summary
+summary(s_hyper_mixed)
+
+s_hypermixed_emmeans <- emmeans(s_hyper_mixed, ~ Group_Combo)
+
+# 2. Run your custom contrasts
+contrast(s_hypermixed_emmeans, method = secondary_subset, adjust = "bonferroni")
+```
+
+```{r}
+s_hyper_mixed2 <- lmer(HyperAUC ~ Group_Combo + Weight + (1 | Bat_ID), 
+                      data = Secondary_Results_filtered)
+
+# Check the summary
+summary(s_hyper_mixed2)
+
+s_hypermixed_emmeans2 <- emmeans(s_hyper_mixed2, ~ Group_Combo)
+
+# 2. Run your custom contrasts
+contrast(s_hypermixed_emmeans2, method = secondary_subset, adjust = "bonferroni")
+```
+
+## Longitudinal Models
+
+Okay, for these models I need to keep bats that have data from both D0 and D21
+```{r}
+D0 <- Analysis_results |> 
+  filter(ExperimentDay == "D0") |> 
+  rename(AUC_D0 = "Total_AUC") |> 
+  select(Bat_ID, AUC_D0, Treatment, Group)
+D1 <- Analysis_results |> 
+  filter(ExperimentDay == "D1") |> 
+  rename(AUC_D1 = "Total_AUC") |> 
+  select(Bat_ID, AUC_D1, Treatment, Group)
+D2 <- Analysis_results |> 
+  filter(ExperimentDay == "D2") |> 
+  rename(AUC_D2 = "Total_AUC") |> 
+  select(Bat_ID, AUC_D2, Treatment, Group)
+D3 <- Analysis_results |> 
+  filter(ExperimentDay == "D3") |> 
+  rename(AUC_D3 = "Total_AUC") |> 
+  select(Bat_ID, AUC_D3, Treatment, Group)
+D21 <- Analysis_results |> 
+  filter(ExperimentDay == "D21") |> 
+  rename(AUC_D21 = "Total_AUC") |> 
+  select(Bat_ID, AUC_D21)
+D22 <- Analysis_results |> 
+  filter(ExperimentDay == "D22") |> 
+  rename(AUC_D22 = "Total_AUC") |> 
+  select(Bat_ID, AUC_D22)
+D23 <- Analysis_results |> 
+  filter(ExperimentDay == "D23") |> 
+  rename(AUC_D23 = "Total_AUC") |> 
+  select(Bat_ID, AUC_D23)
+D24 <- Analysis_results |> 
+  filter(ExperimentDay == "D24") |> 
+  rename(AUC_D24 = "Total_AUC") |> 
+  select(Bat_ID, AUC_D24)
+Basal_TC <- Analysis_results |> 
+  filter(DateType == "Basal TC") |> 
+  rename(AUC_BTC = "Total_AUC") |> 
+  select(Bat_ID, AUC_BTC)
+Basal_TC_1 <- Analysis_results |> 
+  filter(DateType == "Basal TC + 1") |> 
+  rename(AUC_BTC_1 = "Total_AUC") |> 
+  select(Bat_ID, AUC_BTC_1)
+```
+
+** yeah I'm tired of this.... So since my current dataset is wide and a bat only has one row of data, it is not working as a random effect. 
+```{r}
+Full_1 <- inner_join(D0, D21, join_by(Bat_ID)) |> 
+  inner_join(Basal_TC, join_by(Bat_ID))
+
+TC_bats_full <- lmer(AUC_D21 ~ Treatment + AUC_BTC + AUC_D0 + (1 | Bat_ID), 
+                      data = Full_1)
+
+# Check the summary
+summary(secondary_mixed)
+
+secondarymixed_emmeans <- emmeans(secondary_mixed, ~ Group_Combo)
+
+# 2. Run your custom contrasts
+contrast(secondarymixed_emmeans, method = secondary_subset, adjust = "bonferroni")
+```
+
+```{r}
+
+
+FUll_2 <- inner_join(D1, D22, join_by(Bat_ID)) |> 
+  inner_join(Basal_TC_1)
+
+PS <- inner_join(D0, D21, join_by(Bat_ID))
+
+Longitudinal_Results <- left_join(temp, D1, join_by(Bat_ID)) |> 
+  left_join(D2, join_by(Bat_ID)) |> 
+  left_join(D3, join_by(Bat_ID)) |> 
+  left_join(D22, join_by(Bat_ID)) |> 
+  left_join(D23, join_by(Bat_ID)) |> 
+  left_join(D24, join_by(Bat_ID)) |> 
+  left_join(Basal_TC, join_by(Bat_ID)) |> 
+  left_join(Basal_TC_1, join_by(Bat_ID))
+# joining will all other days
+```
+
+Okay, so I am not able to include group_combo anymore since I am comparing across days. 
+```{r}
+secondary_mixed <- lmer( ~ Group_Combo + Weight + (1 | Treatment / Bat_ID), 
+                      data = Longitudinal_Results)
 
 # Check the summary
 summary(secondary_mixed)
@@ -478,27 +634,6 @@ stepAIC(Temp_model1, direction = "backward")
 ```{r}
 cor(Analysis_results[, c('Total_AUC', 'HyperAUC', 'HypoAUC')])
 ```
-
-```{r}
-hypo_glm <- glm(HypoAUC ~ Group + Weight + DateType * Treatment, data = Analysis_results)
-summary(hypo_glm)
-
-hypo_means <- emmeans(hypo_glm, ~ Treatment | DateType)
-
-hypo_comps <- pairs(hypo_means, adjust = "tukey")
- summary(hypo_comps) 
-```
-
-```{r}
-hyper_glm <- glm(HyperAUC ~ Group + Weight + DateType * Treatment, data = Analysis_results)
-summary(hyper_glm)
-
-hyper_means <- emmeans(hyper_glm, ~ Treatment | DateType)
-
-hyper_comps <- pairs(hyper_means, adjust = "tukey")
- summary(hyper_comps) 
-```
-
 
 I want to look at AUC for bats in basal TC and factor in cage.
 ```{r}
