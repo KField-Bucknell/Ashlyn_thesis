@@ -20,7 +20,7 @@ if (!require("ggetho")) install.packages("ggetho"); library(ggetho)
 if (!require("damr")) install.packages("damr"); library(damr)
 if (!require("sleepr")) install.packages("sleepr"); library(sleepr)
 if (!require("timetk")) install.packages("timetk"); library(timetk)
-if (!require("lme4")) install.packages("lme4"); library(lme4)
+#if (!require("lme4")) install.packages("lme4"); library(lme4)
 if (!require("merTools")) install.packages("merTools"); library(merTools)
 if (!require("conflicted")) install.packages("conflicted"); library(conflicted)
 if (!require("devtools")) install.packages("devtools"); library(devtools)
@@ -33,6 +33,8 @@ if (!require("colorspace")) install.packages("colorspace"); library(colorspace)
 if (!require("broom")) install.packages("broom"); library(broom)
 if (!require("performance")) install.packages("performance"); library(performance)
 if (!require("MASS")) install.packages("MASS"); library(MASS)
+if (!require("lmerTest")) install.packages("lmerTest"); library(lmerTest)
+
 
 
 
@@ -344,46 +346,69 @@ contrast(s_hypermixed_emmeans2, method = secondary_subset, adjust = "bonferroni"
 
 Okay, for these models I need to keep bats that have data from both D0 and D21
 ```{r}
+Analysis_results <- Analysis_results |> 
+  mutate(Treatment = factor(Treatment, levels = c("SHAM", "NoCo", "CP", "CS", "CP+S")))
+
 D0 <- Analysis_results |> 
   filter(ExperimentDay == "D0") |> 
-  rename(AUC_D0 = "Total_AUC") |> 
-  select(Bat_ID, AUC_D0, Treatment, Group)
+  rename(AUC_D0 = "Total_AUC",
+         HyperD0 = "HyperAUC",
+         HypoD0 = "HypoAUC") |> 
+  select(Bat_ID, AUC_D0, Treatment, Group, HyperD0, HypoD0)
 D1 <- Analysis_results |> 
   filter(ExperimentDay == "D1") |> 
-  rename(AUC_D1 = "Total_AUC") |> 
-  select(Bat_ID, AUC_D1, Treatment, Group)
+  rename(AUC_D1 = "Total_AUC",
+         HyperD1 = "HyperAUC",
+         HypoD1 = "HypoAUC") |> 
+  select(Bat_ID, AUC_D1, Treatment, Group, HyperD1, HypoD1)
 D2 <- Analysis_results |> 
   filter(ExperimentDay == "D2") |> 
-  rename(AUC_D2 = "Total_AUC") |> 
-  select(Bat_ID, AUC_D2, Treatment, Group)
+  rename(AUC_D2 = "Total_AUC",
+         HyperD2 = "HyperAUC",
+         HypoD2 = "HypoAUC") |> 
+  select(Bat_ID, AUC_D2, Treatment, Group, HyperD2, HypoD2)
 D3 <- Analysis_results |> 
   filter(ExperimentDay == "D3") |> 
-  rename(AUC_D3 = "Total_AUC") |> 
-  select(Bat_ID, AUC_D3, Treatment, Group)
+  rename(AUC_D3 = "Total_AUC",
+         HyperD3 = "HyperAUC",
+         HypoD3 = "HypoAUC") |> 
+  select(Bat_ID, AUC_D3, Treatment, Group, HyperD3, HypoD3)
 D21 <- Analysis_results |> 
   filter(ExperimentDay == "D21") |> 
-  rename(AUC_D21 = "Total_AUC") |> 
-  select(Bat_ID, AUC_D21)
+  rename(AUC_D21 = "Total_AUC",
+         HyperD21 = "HyperAUC",
+         HypoD21 = "HypoAUC") |> 
+  select(Bat_ID, AUC_D21, Treatment, Group, HyperD21, HypoD21)
 D22 <- Analysis_results |> 
   filter(ExperimentDay == "D22") |> 
-  rename(AUC_D22 = "Total_AUC") |> 
-  select(Bat_ID, AUC_D22)
+  rename(AUC_D22 = "Total_AUC",
+         HyperD22 = "HyperAUC",
+         HypoD22 = "HypoAUC") |> 
+  select(Bat_ID, AUC_D22, Treatment, Group, HyperD22, HypoD22)
 D23 <- Analysis_results |> 
   filter(ExperimentDay == "D23") |> 
-  rename(AUC_D23 = "Total_AUC") |> 
-  select(Bat_ID, AUC_D23)
+  rename(AUC_D23 = "Total_AUC",
+         HyperD23 = "HyperAUC",
+         HypoD23 = "HypoAUC") |> 
+  select(Bat_ID, AUC_D23, Treatment, Group, HyperD23, HypoD23)
 D24 <- Analysis_results |> 
   filter(ExperimentDay == "D24") |> 
-  rename(AUC_D24 = "Total_AUC") |> 
-  select(Bat_ID, AUC_D24)
+  rename(AUC_D24 = "Total_AUC" ,
+         HyperD24 = "HyperAUC",
+         HypoD24 = "HypoAUC") |> 
+  select(Bat_ID, AUC_D24, Treatment, Group, HyperD24,HypoD24)
 Basal_TC <- Analysis_results |> 
   filter(DateType == "Basal TC") |> 
-  rename(AUC_BTC = "Total_AUC") |> 
-  select(Bat_ID, AUC_BTC)
+  rename(AUC_BTC = "Total_AUC",
+         Hyper_BTC = "HyperAUC",
+         Hypo_BTC = "HypoAUC") |> 
+  select(Bat_ID, AUC_BTC, Treatment, Group, Hyper_BTC, Hypo_BTC)
 Basal_TC_1 <- Analysis_results |> 
   filter(DateType == "Basal TC + 1") |> 
-  rename(AUC_BTC_1 = "Total_AUC") |> 
-  select(Bat_ID, AUC_BTC_1)
+  rename(AUC_BTC_1 = "Total_AUC",
+         Hyper_BTC_1 = "HyperAUC",
+         Hypo_BTC_1 = "HypoAUC") |> 
+  select(Bat_ID, AUC_BTC_1, Treatment, Group, Hyper_BTC_1, Hypo_BTC_1)
 ```
 
 ** yeah I'm tired of this.... So since my current dataset is wide and a bat only has one row of data, it is not working as a random effect. 
@@ -393,50 +418,117 @@ Full_1 <- inner_join(D0, D21, join_by(Bat_ID)) |>
 
 TC_bats_full <- lmer(AUC_D21 ~ Treatment + AUC_BTC + AUC_D0 + (1 | Bat_ID), 
                       data = Full_1)
+```
+Okay, I talked to Ken and because I can't use Bat_ID as random effect I will try using treatment. However, I don't really want to 'ignore' treatment. But I'll run it anyways. 
 
-# Check the summary
-summary(secondary_mixed)
+```{r}
+TC_bats_full_2 <- lmer(AUC_D21 ~ AUC_BTC + AUC_D0 + (1 | Treatment), 
+                      data = Full_1)
 
-secondarymixed_emmeans <- emmeans(secondary_mixed, ~ Group_Combo)
+summary(TC_bats_full_2)
+```
+Okay so this is similar to my secondary results that showed groups that received the same treatment at the secondary did not have a different thermal response at the secondary despite having different treatments at the primary. I am going to run this as just a glm and see what i get
 
-# 2. Run your custom contrasts
-contrast(secondarymixed_emmeans, method = secondary_subset, adjust = "bonferroni")
+```{r}
+TC_bats_glm <- glm(AUC_D21 ~ Treatment + AUC_BTC + AUC_D0, 
+                      data = Full_1)
+summary(TC_bats_glm)
+```
+Again, this makes sense. CP+S and CS at the secondary is significanlty different than CP. But there is no correlation found between NTD on day 21 and D0 or BTC. The last thing I am going to do is just look at all my bats and only D0 vs D21. 
+
+```{r}
+Full_2 <- inner_join(D0, D21, join_by(Bat_ID))
+
+All_bats_glm <- glm(AUC_D21 ~ Treatment + AUC_D0, 
+                      data = Full_2)
+
+summary(All_bats_glm)
+```
+As suspected no correlation even when including bats that never underwent a thermal challenge. 
+
+
+
+### Primary vs 1, 2, 3
+
+Okay, now I am going to run models to see if primary effects days 1, 2, and 3. 
+
+```{r}
+Primary_days <- inner_join(D0, D1, join_by(Bat_ID)) |> 
+  inner_join(D2, join_by(Bat_ID)) |> 
+  inner_join(D3, join_by(Bat_ID)) |> 
+  select(Bat_ID, AUC_D0, AUC_D1, AUC_D2, AUC_D3, Treatment.x, Group.x, HyperD0, HyperD1, HyperD2, HyperD3, HypoD0, HypoD1, HypoD2, HypoD3) |> 
+  rename(Treatment = "Treatment.x",
+         Group = "Group.x")
+
+Primary_long_glm_1 <- glm(AUC_D1 ~ Treatment + AUC_D0, 
+                      data = Primary_days)
+summary(Primary_long_glm_1)
+
+Primary_long_glm_2 <- glm(AUC_D2 ~ Treatment + AUC_D0, 
+                      data = Primary_days)
+summary(Primary_long_glm_2)
+
+Primary_long_glm_3 <- glm(AUC_D3 ~ Treatment + AUC_D0, 
+                      data = Primary_days)
+summary(Primary_long_glm_3)
+```
+Okay so these results shows that AUC on day 0 is correlated with auc on d1 but not d2 or d3. Since i saw significance in hyper auc on d1, 2 and 3, i want to run this same model looking at hyper and hypo. 
+
+```{r}
+interact_plot(Primary_long_glm_1, pred = AUC_D0, modx = Treatment, interval = TRUE, legend.main = "Treatment Group", plot.points = TRUE) +
+  labs(x = "Primary AUC", y = "Primary+1 AUC") +
+  theme_bw()
+```
+
+#### Hyper and hypo 
+
+```{r}
+HyperD1 <- glm(HyperD1 ~ Treatment + AUC_D0, 
+                      data = Primary_days)
+summary(HyperD1)
+
+HyperD2 <- glm(HyperD2 ~ Treatment + AUC_D0, 
+                      data = Primary_days)
+summary(HyperD2)
+
+HyperD3 <- glm(HyperD3 ~ Treatment + AUC_D0, 
+                      data = Primary_days)
+summary(HyperD3)
+```
+
+
+
+
+Similar to AUC, only hyper AUC on D1 was correlated with hyper AUC on D0. Not sure this is the best way to run this though....
+
+
+### Secondary +1, 2, 3
+```{r}
+Secondary_Days <- inner_join(D21, D22, join_by(Bat_ID)) |> 
+  inner_join(D23, join_by(Bat_ID)) |> 
+  inner_join(D24, join_by(Bat_ID)) |> 
+  select(Bat_ID, AUC_D21, AUC_D22, AUC_D23, AUC_D24, Treatment.x, Group.x) |> 
+ rename(Group = "Group.x", 
+         Treatment = "Treatment.x")
 ```
 
 ```{r}
+Secondary_long_glm_1 <- glm(AUC_D22 ~ Treatment + AUC_D21, 
+                      data = Secondary_Days)
+summary(Secondary_long_glm_1)
 
+Secondary_long_glm_2 <- glm(AUC_D23 ~ Treatment + AUC_D21, 
+                      data = Secondary_Days)
+summary(Secondary_long_glm_2)
 
-FUll_2 <- inner_join(D1, D22, join_by(Bat_ID)) |> 
-  inner_join(Basal_TC_1)
-
-PS <- inner_join(D0, D21, join_by(Bat_ID))
-
-Longitudinal_Results <- left_join(temp, D1, join_by(Bat_ID)) |> 
-  left_join(D2, join_by(Bat_ID)) |> 
-  left_join(D3, join_by(Bat_ID)) |> 
-  left_join(D22, join_by(Bat_ID)) |> 
-  left_join(D23, join_by(Bat_ID)) |> 
-  left_join(D24, join_by(Bat_ID)) |> 
-  left_join(Basal_TC, join_by(Bat_ID)) |> 
-  left_join(Basal_TC_1, join_by(Bat_ID))
-# joining will all other days
-```
-
-Okay, so I am not able to include group_combo anymore since I am comparing across days. 
-```{r}
-secondary_mixed <- lmer( ~ Group_Combo + Weight + (1 | Treatment / Bat_ID), 
-                      data = Longitudinal_Results)
-
-# Check the summary
-summary(secondary_mixed)
-
-secondarymixed_emmeans <- emmeans(secondary_mixed, ~ Group_Combo)
-
-# 2. Run your custom contrasts
-contrast(secondarymixed_emmeans, method = secondary_subset, adjust = "bonferroni")
+Secondary_long_glm_3 <- glm(AUC_D23 ~ Treatment + AUC_D21, 
+                      data = Secondary_Days)
+summary(Secondary_long_glm_3)
 ```
 
 
+
+### Older models that I ran.... 
 Okay, now running some models to look at AUC with treatment and date type.
 ```{r}
 treatment_glm <- glm(Total_AUC ~ DateType * Treatment, data = Analysis_results)
@@ -1227,975 +1319,4 @@ TC_behavr %>%
 ```{r, warning=FALSE}
 ggetho(bat_behavr, aes(y=Temperature, colour=Treatment)) + 
   stat_pop_etho()
-```
-
-```{r, warning=FALSE}
-bat_behavr_eVLP_cGAMP %>%
-  ggetho(aes(x=t, z=Temperature), multiplot = 2) +
-      stat_tile_etho() +
-      facet_wrap( ~ id)
-```
-
-## Subsetting the data to pre-boost and post-boost
-
-Before I proceed with subsetting, I am going to make sure that I understand the data.
-
-```{r}
-allbatresults3 %>%
-  group_by(batnames) %>%
-  summarize(Min_timepoint = min(Timepoint), Min_DateTime = min(DateTime), Max_DateTime = max(DateTime),
-            Min_Temp = min(Temperature), Max_Temp = max(Temperature))
-```
-
-
-```{r, warning=FALSE}
-# summary(bat_behavr_preboost)
-# bat_behavr_preboost %>%
-#   ggetho(aes(y=Temperature, colour=Treatment)) +
-#       stat_pop_etho() +
-#       stat_ld_annotations() +
-#       facet_grid(Treatment ~ .)
-# ggetho(bat_behavr_preboost, aes(y=Temperature, colour=Treatment)) + 
-#   stat_pop_etho()
-```
-
-And now for the post-boost results. 
-For starters, I will trim the 4 days after the injections.
-That didn't work because ggetho kept saying that there was less than 3 days of data :/
-
-Secondly just kept the above format but used more data.
-
-```{r}
-
-
-post_bat_results <- posttreatment_results %>%
-  mutate(Timepoint = Timepoint*10*60) %>%
-  select(id = batnames, t = Timepoint, Temperature) %>%
-  filter(id != "3N8245")
-head(post_bat_results)
-  
-bat_data_postboost <- clean_met3 %>%
-  select(id) %>%
-  left_join(post_bat_results, by = join_by(id))
-str(bat_data_postboost)
-
-bat_data_postboost2 <- data.table::data.table(bat_data_postboost, key = "id")
-
-bat_behavr_postboost <- behavr(bat_data_postboost2, bat_met2)
-summary(bat_behavr_postboost)
-```
-```{r Postboost_Summary, warning=FALSE}
-# summary(bat_behavr_postboost)
-# bat_behavr_postboost %>%
-#   ggetho(aes(y=Temperature, colour=Treatment)) +
-#       stat_pop_etho() +
-#       stat_ld_annotations() +
-#       facet_grid(Treatment ~ .)
-# ggetho(bat_behavr_postboost, aes(y=Temperature, colour=Treatment)) + 
-#   stat_pop_etho()
-```
-
-So I think that the booster happened on day 4 on these graphs, but I need to verify.
-
-## Booster Analysis
-
-To be certain of using the correct timestamps, I am going to analyze with the openair package, as I did for the squirrels.
-
-This is done one bat at a time...
-
-https://bookdown.org/david_carslaw/openair/sections/trend-analysis/time-variation.html
-
-First, comparing all pre-boost data to (boost day + 1 day following)
-
-```{r}
-mybatID <- "1N8476" # A SHAM bat
-singlebatresults <- allbatresults3 %>%
-  filter(batnames == mybatID)
-
-Immunization <- bat_met2 %>%
-  filter(id == mybatID) %>%
-  select(Treatment_date) %>%
-  pull
-Boost <- Immunization + days(21)
-BoostWindow <- days(2)
-
-singlebatresults2 <- singlebatresults %>%
-  filter(DateTime <= Boost + BoostWindow) %>%
-  mutate(Boosted = if_else((DateTime >= Boost ), "Postboost", "Preboost")) %>%
-  mutate(Boosted = factor(Boosted, levels = c("Preboost", "Postboost"))) %>%
-  rename(date = DateTime)
-
-newplot <- timeVariation(singlebatresults2, pollutant ="Temperature", group = "Boosted",  xlab = "Hour",
-              difference = TRUE)
-plot(newplot, subset="hour")
-```
-
-Now let's look at comparing (boost day + 1 day following) to all other days
-
-```{r}
-mybatID <- "1N8476" # A SHAM bat
-singlebatresults <- allbatresults3 %>%
-  filter(batnames == mybatID)
-
-Immunization <- bat_met2 %>%
-  filter(id == mybatID) %>%
-  select(Treatment_date) %>%
-  pull
-Boost <- Immunization + days(21)
-BoostWindow <- days(2)
-
-singlebatresults2 <- singlebatresults %>%
-  filter(DateTime <= Boost + days(BoostWindow)) %>%
-  mutate(Boosted = if_else((DateTime >= Boost ) & (DateTime <= (Boost + BoostWindow)), "Postboost", "Other")) %>%
-  mutate(Boosted = factor(Boosted, levels = c("Other", "Postboost"))) %>%
-  rename(date = DateTime)
-
-newplot <- timeVariation(singlebatresults2, pollutant ="Temperature", group = "Boosted",  xlab = "Hour",
-              difference = TRUE)
-plot(newplot, subset="hour")
-```
-
-The results look very similar.
-
-
-```{r}
-mybatID <- "1N8475" # A eVLP cGAMP bat
-singlebatresults <- allbatresults3 %>%
-  filter(batnames == mybatID)
-
-Immunization <- bat_met2 %>%
-  filter(id == mybatID) %>%
-  select(Treatment_date) %>%
-  pull
-Boost <- Immunization + days(21)
-BoostWindow <- days(2)
-
-singlebatresults2 <- singlebatresults %>%
-  filter(DateTime <= Boost + BoostWindow) %>%
-  mutate(Boosted = if_else((DateTime >= Boost ), "Postboost", "Preboost")) %>%
-  mutate(Boosted = factor(Boosted, levels = c("Preboost", "Postboost"))) %>%
-  rename(date = DateTime)
-
-newplot <- timeVariation(singlebatresults2, pollutant ="Temperature", group = "Boosted",  xlab = "Hour",
-              difference = TRUE)
-plot(newplot, subset="hour")
-```
-
-Now let's look at comparing (boost day + 1 day following) to all other days
-
-```{r}
-mybatID <- "1N8475" # A eVLP cGAMP bat
-singlebatresults <- allbatresults3 %>%
-  filter(batnames == mybatID)
-
-Immunization <- bat_met2 %>%
-  filter(id == mybatID) %>%
-  select(Treatment_date) %>%
-  pull
-Boost <- Immunization + days(21)
-BoostWindow <- days(2)
-
-singlebatresults2 <- singlebatresults %>%
-  filter(DateTime <= Boost + days(BoostWindow)) %>%
-  mutate(Boosted = if_else((DateTime >= Boost ) & (DateTime <= (Boost + BoostWindow)), "Postboost", "Other")) %>%
-  mutate(Boosted = factor(Boosted, levels = c("Other", "Postboost"))) %>%
-  rename(date = DateTime)
-
-newplot <- timeVariation(singlebatresults2, pollutant ="Temperature", group = "Boosted",  xlab = "Hour",
-              difference = TRUE)
-plot(newplot, subset="hour")
-```
-
-To keep the comparison cleaner, I will continue with pre versus post. 
-The only downside is that the confidence interval is a little wider on the "pre" data than the "other" data.
-
-## Comparison of all bats
-
-```{r}
-bat_met2 %>%
-  arrange(Treatment) %>%
-  select(id, Treatment)
-```
-
-Let's make a function for the timeVariation plot
-
-```{r}
-timeVariation_fun <- function(arg1) {
-  mybatID <- arg1
-
-  
-  Group <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment) %>%
-    pull
-
-  Immunization <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment_date) %>%
-    pull
-  Boost <- Immunization + days(21)
-  BoostWindow <- days(2)
-
-  singlebatresults <- allbatresults3 %>%
-    filter(batnames == mybatID)
-
-  singlebatresults2 <- singlebatresults %>%
-    filter(DateTime <= Boost + BoostWindow) %>%
-    mutate(Boosted = if_else((DateTime >= Boost ), "Postboost", "Preboost")) %>%
-    mutate(Boosted = factor(Boosted, levels = c("Preboost", "Postboost"))) %>%
-    rename(date = DateTime)
-
-  newplot <- timeVariation(singlebatresults2, pollutant ="Temperature", 
-                           group = "Boosted",  
-                           xlab = c(paste(mybatID, Group), paste(mybatID, Group), "Month", "Weekday"),
-                           difference = TRUE, plot = FALSE)
-  plot(newplot, subset="day.hour")
-  plot(newplot, subset="hour")
-}
-```
-
-```{r}
-timeVariation_fun("1N8476")
-```
-
-Now let's look at the groups one at a time.
-
-```{r SHAM}
-bat_sham <- bat_met2 %>%
-  filter(Treatment == "SHAM") %>%
-  select(id) %>%
-  pull
-lapply(bat_sham, timeVariation_fun)
-```
-
-```{r eVLP LPS}
-bat_LPS <- bat_met2 %>%
-  filter(Treatment == "eVLP LPS") %>%
-  select(id) %>%
-  pull
-lapply(bat_LPS, timeVariation_fun)
-```
-
-```{r TC}
-bat_eVLP <- bat_met2 %>%
-  filter(Treatment == "eVLP") %>%
-  select(id) %>%
-  pull
-lapply(bat_eVLP, timeVariation_fun)
-```
-
-## Tent Logger Data
-
-Two possible ways to incorporate this data. 
-First, I will add it as a separate "pollutant".
-Second, I will show it as a separate "feature".
-
-```{r}
-alltentresults <- fread("TemperatureLoggers/tentloggerdata_long.tsv")
-alltentresults <- alltentresults %>%
-  mutate(Tent = gsub("Tent ", "", Tent))
-str(alltentresults)
-
-tent_met <- Metadata %>%
-  drop_na(Filename) %>%
-  select(Filename, DMR_ID, Tag, Treatment, Age, Sex,
-         Attachment_date = "Date Attached", 
-         Treatment_date = Day_00, 
-         RIP_date,
-         Tent = Tent.x) %>%
-  mutate(id = gsub(".DAT", "", Filename)) %>%
-  relocate(id)
-
-tentbatresults <- tent_met %>%
-  select(id, Tent) %>%
-  right_join(allbatresults3, by = join_by(id == batnames))
-
-tentbatresults2 <- tentbatresults %>%
-  left_join(alltentresults, by = join_by(Tent, DateTime)) %>%
-  rename(`Bat T` = Temperature.x) %>%
-  rename(`Tent T` = Temperature.y)
-
-write_csv(tentbatresults2, file = "allbatandtentresults.csv")
-```
-
-A new plot function:
-
-```{r}
-timeVariation_fun2 <- function(arg1) {
-  mybatID <- arg1
-
-  Group <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment) %>%
-    pull
-
-  # Immunization <- bat_met2 %>%
-  #   filter(id == mybatID) %>%
-  #   select(Treatment_date) %>%
-  #   pull
-  # Boost <- Immunization + days(21)
-  # BoostWindow <- days(2)
-
-  singlebatresults <- tentbatresults2 %>%
-    filter(id == mybatID)
-
-  # singlebatresults2 <- singlebatresults %>%
-  #   filter(DateTime <= Boost + BoostWindow) %>%
-  #   mutate(Boosted = if_else((DateTime >= Boost ), "Postboost", "Preboost")) %>%
-  #   mutate(Boosted = factor(Boosted, levels = c("Preboost", "Postboost"))) %>%
-  #   rename(date = DateTime)
-  
-  singlebatresults2 <- singlebatresults %>%
-    rename(date = DateTime)
-
-  newplot <- timeVariation(singlebatresults2, pollutant =c("Tent T", "Bat T"), 
-                           xlab = c(paste(mybatID, Group), paste(mybatID, Group), "Month", "Weekday"),
-                           difference = TRUE, plot = FALSE)
-  plot(newplot, subset="day.hour")
-  plot(newplot, subset="hour")
-}
-```
-
-Test with one bat:
-
-```{r}
-timeVariation_fun2("1N8476")
-```
-That looks good. Let's plot each group at a time.
-
-```{r Sham-Tent}
-lapply(bat_sham, timeVariation_fun2)
-```
-
-```{r eVLP + LPS -Tent}
-lapply(bat_eVLP, timeVariation_fun2)
-```
-
-```{r TC -Tent}
-lapply(bat_LPS, timeVariation_fun2)
-```
-
-Okay, because the "difference" function worked fine, I don't think that I need to reorganize the data. 
-Let's see if I can also use the boost "group" at the same time.
-
-Dammit: "Can only have one pollutant with a grouping variable, or several pollutants and no grouping variable."
-
-Okay, I think I will make a new variable called delta T and use that as the only pollutant.
-
-I will also test different "postboost" windows.
-
-A new plot function:
-
-```{r}
-timeVariation_fun3 <- function(arg1, arg2) {
-  mybatID <- arg1
-
-  Group <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment) %>%
-    pull
-
-  Immunization <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment_date) %>%
-    pull
-  Boost <- Immunization + days(21)
-  BoostWindow <- days(arg2)
-  BoostText <- paste0("Postboost(", as.character(arg2), ")")
-
-  singlebatresults <- tentbatresults2 %>%
-    filter(id == mybatID) %>%
-    mutate(`delta T` = `Bat T` - `Tent T`)
-
-  singlebatresults2 <- singlebatresults %>%
-    filter(DateTime <= Boost + BoostWindow) %>%
-    mutate(Boosted = if_else((DateTime >= Boost ), BoostText, "Preboost")) %>%
-    mutate(Boosted = factor(Boosted, levels = c("Preboost", BoostText))) %>%
-    rename(date = DateTime)
-
-  newplot <- timeVariation(singlebatresults2, pollutant = "delta T", 
-                           group = "Boosted",
-                           xlab = c(paste(mybatID, Group), paste(mybatID, Group), "Month", "Weekday"),
-                           difference = TRUE, plot = FALSE)
-  plot(newplot, subset="day.hour")
-  plot(newplot, subset="hour")
-}
-```
-
-Test with one bat:
-
-```{r}
-timeVariation_fun3("1N8476", 5)
-```
-
-```{r Sham-deltaT}
-lapply(bat_sham, timeVariation_fun3, 3)
-```
-
-```{r eVLP + LPS -deltaT}
-lapply(bat_eVLP, timeVariation_fun3, 3)
-```
-
-```{r TC -deltaT}
-lapply(bat_LPS, timeVariation_fun3, 3)
-```
-
-
-## Comparing by Treatment Group
-
-Using the "group" parameter in timeVariation and to make separate plots for pre-boost and then each day post-boost.
-
-
-```{r Group Comparisons}
-tentbatresults3 <- tentbatresults2 %>%
-  mutate(`delta T` = `Bat T` - `Tent T`) %>%
-  rename(date = DateTime)
-
-bat_boost_date <- bat_met2 %>%
-  select(id, Treatment, Treatment_date) %>%
-  mutate(Treatment = factor(Treatment, levels = c("SHAM", "eVLP",
-                                                  "eVLP LPS", "eVLP POLY", "eVLP cGAMP")))
-
-tentbatresults4 <- tentbatresults3 %>%
-  left_join(bat_boost_date, by = join_by(id))
-
-str(tentbatresults4)
-
-preboost_tentbatresults <- tentbatresults4 %>%
-  filter(date < (Treatment_date + days(21)))
-
-boostday_tentbatresults <- tentbatresults4 %>%
-  filter(date >= (Treatment_date + days(21)) & date <= (Treatment_date + days(22)))
-
-postboostday1_tentbatresults <- tentbatresults4 %>%
-  filter(date >= (Treatment_date + days(22)) & date <= (Treatment_date + days(23)))
-
-postboostday2_tentbatresults <- tentbatresults4 %>%
-  filter(date >= (Treatment_date + days(23)) & date <= (Treatment_date + days(24)))
-
-postboostday3_tentbatresults <- tentbatresults4 %>%
-  filter(date >= (Treatment_date + days(24)) & date <= (Treatment_date + days(25)))
-
-postboostday4_tentbatresults <- tentbatresults4 %>%
-  filter(date >= (Treatment_date + days(24)) & date <= (Treatment_date + days(25)))
-
-postboostday5_tentbatresults <- tentbatresults4 %>%
-  filter(date >= (Treatment_date + days(25)) & date <= (Treatment_date + days(26)))
-
-
-preboost_plot <- timeVariation(preboost_tentbatresults, pollutant = "delta T", 
-                               group = "Treatment",
-                               xlab = c("Preboost", "Preboost", "Month", "Weekday"),
-                               difference = FALSE, plot = FALSE, 
-                               key.columns = 3)
-plot(preboost_plot, subset="hour")
-
-boostday_plot <- timeVariation(boostday_tentbatresults, pollutant = "delta T", 
-                               group = "Treatment",
-                               xlab = c("Boost Day", "Boost Day", "Month", "Weekday"),
-                               difference = FALSE, plot = FALSE, 
-                               key.columns = 3)
-plot(boostday_plot, subset="hour")
-
-postboostday1_plot <- timeVariation(postboostday1_tentbatresults, pollutant = "delta T", 
-                               group = "Treatment",
-                               xlab = c("Postboost Day 1", "Postboost Day 1", "Month", "Weekday"),
-                               difference = FALSE, plot = FALSE, 
-                               key.columns = 3)
-plot(postboostday1_plot, subset="hour")
-
-postboostday2_plot <- timeVariation(postboostday2_tentbatresults, pollutant = "delta T", 
-                               group = "Treatment",
-                               xlab = c("Postboost Day 2", "Postboost Day 2", "Month", "Weekday"),
-                               difference = FALSE, plot = FALSE, 
-                               key.columns = 3)
-plot(postboostday2_plot, subset="hour")
-
-postboostday3_plot <- timeVariation(postboostday3_tentbatresults, pollutant = "delta T", 
-                               group = "Treatment",
-                               xlab = c("Postboost Day 3", "Postboost Day 3", "Month", "Weekday"),
-                               difference = FALSE, plot = FALSE, 
-                               key.columns = 3)
-plot(postboostday3_plot, subset="hour")
-
-postboostday4_plot <- timeVariation(postboostday4_tentbatresults, pollutant = "delta T", 
-                               group = "Treatment",
-                               xlab = c("Postboost Day 4", "Postboost Day 4", "Month", "Weekday"),
-                               difference = FALSE, plot = FALSE, 
-                               key.columns = 3)
-plot(postboostday4_plot, subset="hour")
-
-postboostday5_plot <- timeVariation(postboostday5_tentbatresults, pollutant = "delta T", 
-                               group = "Treatment",
-                               xlab = c("Postboost Day 5", "Postboost Day 5", "Month", "Weekday"),
-                               difference = FALSE, plot = FALSE, 
-                               key.columns = 3)
-plot(postboostday5_plot, subset="hour")
-
-```
-
-
-## Quantifying Temperature Differences
-
-Designing a function to measure the daily difference in Bat temperature compared to the tent temperature.
-
-```{r}
-mybatID <- "1N8476" # A SHAM bat
-
-Group <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment) %>%
-    pull
-
-Immunization <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment_date) %>%
-    pull
-Boost <- Immunization + days(21)
-BoostWindow <- days(3)
-BoostText <- paste0("Postboost(", as.character(3), ")")
-
-singlebatresults <- tentbatresults2 %>%
-    filter(id == mybatID) %>%
-    mutate(`delta T` = `Bat T` - `Tent T`)
-
-singlebatresults2 <- singlebatresults %>%
-    filter(DateTime <= Boost + BoostWindow) %>%
-    mutate(Boosted = if_else((DateTime >= Boost ), BoostText, "Preboost")) %>%
-    mutate(Boosted = factor(Boosted, levels = c("Preboost", BoostText))) %>%
-    rename(date = DateTime) %>%
-    filter(row_number() <= n()-1)
-  
-singlebatresults2 %>%
-  group_by(Boosted) %>%
-  summarise_by_time(.date_var = date, 
-                      .by = "day",
-                      daily_delta = sum(`delta T`))
-```
-
-
-A function to quantify this delta T by day:
-
-```{r}
-tempDifference_fun <- function(arg1, arg2) {
-  mybatID <- arg1
-
-  Group <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment) %>%
-    pull
-  
-  Sex <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Sex) %>%
-    pull
-  
-  Age <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Age) %>%
-    pull
-  
-  DMR_Id <- NewTempLoggerMetadata %>%
-    filter(Id == mybatID) %>%
-    select(DMR_ID) %>%
-    pull
-  
-  Tent <- Metadata %>%
-    filter(DMR_ID == DMR_Id) %>%
-    select(Tent.x) %>%
-    pull
-  
-  Immunization <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment_date) %>%
-    pull
-  
-  Boost <- Immunization + days(21)
-  BoostWindow <- days(arg2)
-  BoostText <- paste0("Postboost(", as.character(arg2), ")")
-
-  singlebatresults <- tentbatresults2 %>%
-    filter(id == mybatID) %>%
-    mutate(`delta T` = `Bat T` - `Tent T`)
-
-  singlebatresults2 <- singlebatresults %>%
-    filter(DateTime <= Boost + BoostWindow) %>%
-    mutate(Boosted = if_else((DateTime >= Boost ), BoostText, "Preboost")) %>%
-    mutate(Boosted = factor(Boosted, levels = c("Preboost", BoostText))) %>%
-    rename(date = DateTime) %>%
-    filter(row_number() <= n()-1)
-  
-  daily_summary <- singlebatresults2 %>%
-    group_by(Boosted) %>%
-    summarise_by_time(.date_var = date, 
-                      .by = "day",
-                      daily_delta = sum(`delta T`)/144, 
-                      daily_batT = mean(`Bat T`))
-  
-  daily_summary_tibble <- tibble(BatID = mybatID, 
-                                 Treatment = Group,
-                                 Age = Age,
-                                 Sex = Sex,
-                                 Tent = Tent,
-                                 `DeltaT d-3` = daily_summary$daily_delta[1],
-                                 `DeltaT d-2` = daily_summary$daily_delta[2],
-                                 `DeltaT d-1` = daily_summary$daily_delta[3],
-                                 `DeltaT d0` = daily_summary$daily_delta[4],
-                                 `DeltaT d1` = daily_summary$daily_delta[5],
-                                 `DeltaT d2` = daily_summary$daily_delta[6],
-                                 `BatT d-3` = daily_summary$daily_batT[1],
-                                 `BatT d-2` = daily_summary$daily_batT[2],
-                                 `BatT d-1` = daily_summary$daily_batT[3],
-                                 `BatT d0` = daily_summary$daily_batT[4],
-                                 `BatT d1` = daily_summary$daily_batT[5],
-                                 `BatT d2` = daily_summary$daily_batT[6])
-  
-  return(daily_summary_tibble)
-}
-```
-
-Now let's try it!
-
-```{r}
-tempDifference_fun("1N8476", 3)
-bat_delta_list <- lapply(batnames, tempDifference_fun, 3)
-bat_delta <- bind_rows(bat_delta_list)
-bat_delta_full <- bat_delta |>
-  mutate(Treatment = factor(Treatment, levels = c("SHAM", "eVLP", "eVLP LPS", "eVLP POLY", "eVLP cGAMP"))) |>
-  rowwise() |>
-  mutate(`Preboost Mean dT` = mean(c(`DeltaT d-3`,`DeltaT d-2`,`DeltaT d-1`))) |>
-  mutate(`Postboost Mean dT` = mean(c(`DeltaT d0`,`DeltaT d1`,`DeltaT d2`))) |>
-  mutate(`Preboost Bat T` = mean (c(`BatT d-3`,`BatT d-2`,`BatT d-1`))) |>
-  mutate(`Postboost Bat T` = mean(c(`BatT d0`,`BatT d1`,`BatT d2`)))
-bat_delta_full
-```
-
-And let's try to look at the various possible models.
-
-```{r Delta T Models}
-first_model <- glm(`Postboost Mean dT` ~ Treatment, data = bat_delta_full)
-summary(first_model)
-second_model <- glm(`Postboost Mean dT` ~ `Preboost Mean dT` + Treatment, data = bat_delta_full)
-summary(second_model)
-Day0_model <- glm(`DeltaT d0` ~ `Preboost Mean dT` + Treatment, data = bat_delta_full)
-summary(Day0_model)
-Day1_model <- glm(`DeltaT d1` ~ `Preboost Mean dT` + Treatment, data = bat_delta_full)
-summary(Day1_model)
-Day2_model <- glm(`DeltaT d2` ~ `Preboost Mean dT` + Treatment, data = bat_delta_full)
-summary(Day2_model)
-bigger_model <- glm(`Postboost Mean dT` ~ `Preboost Mean dT` + Tent + Age + Sex + Treatment, data = bat_delta_full)
-summary(bigger_model)
-```
-
-```{r Delta T Graphs}
-stat_summary <- bat_delta_full |> 
-  group_by(Treatment) |>
-  tally()
-stat_summary
-ggplot(bat_delta_full, aes(x = Treatment, y = `Postboost Mean dT`)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_point(aes(fill = Treatment), size = 3, shape = 21, alpha = 0.5,  position = position_jitterdodge()) +
-  theme_cowplot() +
-  theme(legend.position="none") +
-  theme(axis.title.x = element_blank()) +
-  ylab(expression(paste('3-day Postboost ',Delta,'T'))) +
-  geom_text(data = stat_summary, aes(Treatment, Inf, label = paste0("n=",n)), vjust = 1)
-bat_delta_pivot <- bat_delta_full |>
-  pivot_longer(cols = `Preboost Mean dT`:`Postboost Mean dT`, names_to = "Boost")
-ggplot(bat_delta_pivot, aes(x = Treatment, y = value, fill = Boost)) +
-  geom_boxplot(outlier.shape = NA) +
-  theme_cowplot() +
-  geom_point(aes(fill = Boost), size = 2, shape = 21, alpha = 0.5,  position = position_jitterdodge()) +
-  theme(axis.title.x = element_blank()) +
-  ylab(expression(paste('3-day ',Delta,'T')))
-
-ggplot(bat_delta_full, aes(x=`Preboost Mean dT`, y=`Postboost Mean dT`, color=Treatment)) + 
-    geom_point() +
-    theme_cowplot()
-
-ggplot(bat_delta_full, aes(x=`Preboost Mean dT`, y=`Postboost Mean dT`, 
-                           color=Treatment, shape = Age)) + 
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1, linetype="dashed", color = "red") +
-    theme_cowplot()
-
-ggplot(bat_delta_full, aes(x=`Preboost Mean dT`, y=`Postboost Mean dT`, 
-                           color=Tent, shape = Treatment)) + 
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1, linetype="dashed", color = "red") +
-    theme_cowplot()
-
-ggplot(bat_delta_full, aes(x=`Preboost Mean dT`, y=`Postboost Mean dT`, 
-                           color=Treatment, shape = Sex)) + 
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1, linetype="dashed", color = "red") +
-    theme_cowplot()
-
-```
-
-
-Well that is quite disappointing. 
-Tent is clearly the biggest factor driving this.
-Delta T is not the best way to analyze this phenomenon.
-
-First, we need to look at Bat T instead of delta T.
-
-
-```{r Bat T Models}
-first_model <- glm(`Postboost Bat T` ~ Treatment, data = bat_delta_full)
-summary(first_model)
-second_model <- glm(`Postboost Bat T` ~ `Preboost Bat T` + Treatment, data = bat_delta_full)
-summary(second_model)
-Day0_model <- glm(`DeltaT d0` ~ `Preboost Bat T` + Treatment, data = bat_delta_full)
-summary(Day0_model)
-Day1_model <- glm(`DeltaT d1` ~ `Preboost Bat T` + Treatment, data = bat_delta_full)
-summary(Day1_model)
-Day2_model <- glm(`DeltaT d2` ~ `Preboost Bat T` + Treatment, data = bat_delta_full)
-summary(Day2_model)
-bigger_model <- glm(`Postboost Bat T` ~ `Preboost Bat T` + Tent + Age + Sex + Treatment, data = bat_delta_full)
-summary(bigger_model)
-```
-
-This is the ideal situation for a mixed effects model!
-
-Let's see how it works.
-
-Following guidance at https://m-clark.github.io/mixed-models-with-R/random_intercepts.html
-
-```{r}
-bat_delta_T <- bat_delta_full |>
-  mutate(`Boost dT` = `Postboost Bat T` - `Preboost Bat T`)
-
-mixed_model <- lmer(`Boost dT` ~ Treatment + (1|Tent), data = bat_delta_T)
-summary(mixed_model)
-confint(mixed_model)
-ranef(mixed_model)$Tent
-coef(mixed_model)$Tent
-
-predictInterval(mixed_model)   # for various model predictions, possibly with new data
-
-REsim(mixed_model)             # mean, median and sd of the random effect estimates
-
-plotREsim(REsim(mixed_model))  # plot the interval estimates
-
-```
-
-It looks like even after incorporating Tent as a random effect, the Treatment effect is not significant.
-This may be because I am looking at the 3-day average and I need a more focused approach.
-
-```{r Bat T Graphs}
-stat_summary <- bat_delta_full |> 
-  group_by(Treatment) |>
-  tally()
-stat_summary
-ggplot(bat_delta_full, aes(x = Treatment, y = `Postboost Bat T`)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_point(aes(fill = Treatment), size = 3, shape = 21, alpha = 0.5,  position = position_jitterdodge()) +
-  theme_cowplot() +
-  theme(legend.position="none") +
-  theme(axis.title.x = element_blank()) +
-  geom_text(data = stat_summary, aes(Treatment, Inf, label = paste0("n=",n)), vjust = 1)
-
-bat_delta_pivot <- bat_delta_full |>
-  pivot_longer(cols = `Preboost Bat T`:`Postboost Bat T`, names_to = "Boost") |>
-  mutate(Boost = factor(Boost, levels = c("Preboost Bat T", "Postboost Bat T")))
-
-ggplot(bat_delta_pivot, aes(x = Treatment, y = value, fill = Boost)) +
-  geom_boxplot(outlier.shape = NA) +
-  theme_cowplot() +
-  geom_point(aes(fill = Boost), size = 2, shape = 21, alpha = 0.5,  position = position_jitterdodge()) +
-  theme(axis.title.x = element_blank()) +
-  ylab("3-day Bat T Mean")
-
-ggplot(bat_delta_pivot, aes(x = Boost, y = value)) +
-  geom_boxplot(outlier.shape = NA) +
-  theme_cowplot() +
-  geom_point(aes(fill = Boost), size = 2, shape = 21, alpha = 0.5, position = position_nudge()) +
-  geom_line(aes(group=BatID), colour="red", linetype="11") +
-  theme(axis.title.x = element_blank()) +
-  facet_wrap(~Treatment) +
-  ylab("3-day Bat T Mean")
-
-ggplot(bat_delta_full, aes(x=`Preboost Bat T`, y=`Postboost Bat T`, color=Treatment)) + 
-    geom_point() +
-    theme_cowplot()
-
-ggplot(bat_delta_full, aes(x=`Preboost Bat T`, y=`Postboost Bat T`, 
-                           color=Treatment, shape = Age)) + 
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1, linetype="dashed", color = "red") +
-    theme_cowplot()
-
-ggplot(bat_delta_full, aes(x=`Preboost Bat T`, y=`Postboost Bat T`, 
-                           color=Tent, shape = Treatment)) + 
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1, linetype="dashed", color = "red") +
-    theme_cowplot()
-
-ggplot(bat_delta_full, aes(x=`Preboost Bat T`, y=`Postboost Bat T`, 
-                           color=Treatment, shape = Sex)) + 
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1, linetype="dashed", color = "red") +
-    theme_cowplot()
-
-```
-
-
-### Day 1 Post-boost
-
-Reviewing some of the data from the sham group, I think it would be better to look only at post-boost day 1 or day 2.
-This should avoid some of the impact of handling. 
-
-```{r}
-bat_delta_T_day1 <- bat_delta_full |>
-  mutate(`Boost dT day1` = `BatT d1` - `Preboost Bat T`) |>
-  mutate(`Boost dT day2` = `BatT d2` - `Preboost Bat T`)
-
-ggplot(bat_delta_T_day1, aes(x=`Preboost Bat T`, y=`BatT d1`, 
-                           color=Treatment, shape = Sex)) + 
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1, linetype="dashed", color = "red") +
-    theme_cowplot()
-
-ggplot(bat_delta_T_day1, aes(x=`Preboost Bat T`, y=`BatT d2`, 
-                           color=Treatment, shape = Sex)) + 
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1, linetype="dashed", color = "red") +
-    theme_cowplot()
-
-mixed_model_d1 <- lmer(`Boost dT day1` ~ Treatment + (1|Tent), data = bat_delta_T_day1)
-summary(mixed_model_d1)
-confint(mixed_model_d1)
-ranef(mixed_model_d1)$Tent
-coef(mixed_model_d1)$Tent
-predictInterval(mixed_model_d1)   # for various model predictions, possibly with new data
-REsim(mixed_model_d1)             # mean, median and sd of the random effect estimates
-plotREsim(REsim(mixed_model_d1))  # plot the interval estimates
-
-mixed_model_d2 <- lmer(`Boost dT day2` ~ Treatment + (1|Tent), data = bat_delta_T_day1)
-summary(mixed_model_d2)
-confint(mixed_model_d2)
-ranef(mixed_model_d2)$Tent
-coef(mixed_model_d2)$Tent
-predictInterval(mixed_model_d2)   # for various model predictions, possibly with new data
-REsim(mixed_model_d2)             # mean, median and sd of the random effect estimates
-plotREsim(REsim(mixed_model_d2))  # plot the interval estimates
-```
-
-The d2 model might show something interesting for the Poly(I:C) group, but it is a small effect.
-
-
-## Hourly Temperature Differences
-
-```{r}
-mybatID <- "1N8476" # A SHAM bat
-
-Group <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment) %>%
-    pull
-
-Immunization <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment_date) %>%
-    pull
-Boost <- Immunization + days(21)
-BoostWindow <- days(3)
-BoostText <- paste0("Postboost(", as.character(3), ")")
-
-singlebatresults <- tentbatresults2 %>%
-    filter(id == mybatID) %>%
-    mutate(`delta T` = `Bat T` - `Tent T`)
-
-singlebatresults2 <- singlebatresults %>%
-    filter(DateTime <= Boost + BoostWindow) %>%
-    mutate(Boosted = if_else((DateTime >= Boost ), BoostText, "Preboost")) %>%
-    mutate(Boosted = factor(Boosted, levels = c("Preboost", BoostText))) %>%
-    rename(date = DateTime) %>%
-    filter(row_number() <= n()-1)
-  
-singlebatresults3 <- singlebatresults2 %>%
-  group_by(Boosted) %>%
-  summarise_by_time(.date_var = date, 
-                    .by = "hour", 
-                    hourly_delta = sum(`delta T`)/6)
-
-
-ggplot(singlebatresults3, aes(x = date, y = hourly_delta, color = Boosted)) + 
-  geom_line() +
-  theme_cowplot()
-```
-A function to quantify this delta T by hour:
-
-```{r}
-tempDifference_fun2 <- function(arg1, arg2) {
-  mybatID <- arg1
-
-  Group <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment) %>%
-    pull
-  
-  Sex <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Sex) %>%
-    pull
-  
-  Age <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Age) %>%
-    pull
-  
-  Immunization <- bat_met2 %>%
-    filter(id == mybatID) %>%
-    select(Treatment_date) %>%
-    pull
-  Boost <- Immunization + days(21)
-  BoostWindow <- days(arg2)
-  BoostText <- paste0("Postboost(", as.character(arg2), ")")
-
-  singlebatresults <- tentbatresults2 %>%
-    filter(id == mybatID) %>%
-    mutate(`delta T` = `Bat T` - `Tent T`)
-
-  singlebatresults2 <- singlebatresults %>%
-    filter(DateTime <= Boost + BoostWindow) %>%
-    mutate(Boosted = if_else((DateTime >= Boost ), BoostText, "Preboost")) %>%
-    mutate(Boosted = factor(Boosted, levels = c("Preboost", BoostText))) %>%
-    rename(date = DateTime) %>%
-    filter(row_number() <= n()-1)
-  
-  daily_summary <- singlebatresults2 %>%
-    group_by(Boosted) %>%
-    summarise_by_time(.date_var = date, 
-                      .by = "day",
-                      daily_delta = sum(`delta T`))
-  
-  daily_summary_tibble <- tibble(BatID = mybatID, 
-                                 Treatment = Group,
-                                 Age = Age,
-                                 Sex = Sex,
-                                 `Preboost d-3` = daily_summary$daily_delta[1]/144,
-                                 `Preboost d-2` = daily_summary$daily_delta[2]/144,
-                                 `Preboost d-1` = daily_summary$daily_delta[3]/144,
-                                 `Boost d0` = daily_summary$daily_delta[4]/144,
-                                 `Boost d1` = daily_summary$daily_delta[5]/144,
-                                 `Boost d2` = daily_summary$daily_delta[6]/144)
-  
-  return(daily_summary_tibble)
-}
-```
-
-Now let's try it!
-
-```{r}
-# tempDifference_fun2("1N8476", 3)
-# bat_delta_list <- lapply(batnames, tempDifference_fun, 3)
-# bat_delta <- bind_rows(bat_delta_list)
-# bat_delta_full <- bat_delta |>
-#   mutate(Treatment = factor(Treatment, levels = c("SHAM", "eVLP", "eVLP LPS", "eVLP POLY", "eVLP cGAMP"))) |>
-#   rowwise() |>
-#   mutate(`Preboost Mean dT` = mean(c(`Preboost d-3`,`Preboost d-2`,`Preboost d-1`))) |>
-#   mutate(`Postboost Mean dT` = mean(c(`Boost d0`,`Boost d1`,`Boost d2`)))
-# bat_delta_full
 ```
