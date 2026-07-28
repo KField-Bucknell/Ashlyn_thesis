@@ -1159,7 +1159,7 @@ Weight_Data <- Weight_Data |>
 
 
 Results <- Results |> 
-  left_join(Weight_Data |> select(Bat_ID, ExperimentDay, Weight), join_by(Bat_ID,ExperimentDay))
+  left_join(Weight_Data |> select(Bat_ID, ExperimentDay, Weight, Day_Num), join_by(Bat_ID,ExperimentDay))
 
 ```
 

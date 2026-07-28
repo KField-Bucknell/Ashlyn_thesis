@@ -34,7 +34,7 @@ if (!require("broom")) install.packages("broom"); library(broom)
 if (!require("performance")) install.packages("performance"); library(performance)
 if (!require("MASS")) install.packages("MASS"); library(MASS)
 if (!require("lmerTest")) install.packages("lmerTest"); library(lmerTest)
-
+if (!require("patchwork")) install.packages("patchwork"); library(patchwork)
 
 
 
@@ -63,9 +63,20 @@ glimpse(Analysis_results) # check formatting again
 
 I am going to load in my data and metadata for both immunizations
 
-Make values for bat names
+Make values for bat names and assign colors for groups
 ```{r}
 ResultsNames <- unique(Analysis_results$Bat_ID)
+
+treatmentcolors <- c("CP" = "#9EB0FFFF",
+            "CP+S" = "#2D7597FF",
+            "CS" = "#FFACACFF", 
+            "NoCo" =  "#8A3F2A",
+            "SHAM" = "#11181DFF",
+            "Tnorm" = "black")
+
+primary_colors <- c("Cold" = "#9EB0FFFF",
+                    "NoCo" = "#8A3F2A",
+                    "SHAM" = "#11181DFF" )
 ```
 
 Okay, first thing I am going to do is group all CS and NoCo and CP and CP+S into two groups before secondary. I am then only going to pull out days before Secondary.
@@ -81,6 +92,9 @@ I am also going to make two additional columns. One that is regular treatment+da
 Analysis_results$Group_Combo <- factor(paste(Analysis_results$Treatment, Analysis_results$DateType, sep = "_"))
 
 Analysis_results$Primary_Combo <- factor(paste(Analysis_results$Primary_Treatment, Analysis_results$DateType, sep = "_"))
+
+Analysis_results <- Analysis_results |> 
+  mutate(Treatment = factor(Treatment, levels = c("SHAM", "NoCo", "CP", "CS", "CP+S")))
 
 ```
 
@@ -132,21 +146,247 @@ contrast(primary_emmeans2, method = primary_subset, adjust = "bonferroni")
 Okay this ran and the significant values make sense; however, after asking some questions with gemini I don't think I can ignore Bat_ID because the glm assumes that every row is independent of other rows. Since bat_id is found multiple times across rows they are not independent of each other. It wants me to run a mixed effects model. I know Ken and I talked about this and he doesnt want me to run one, but I am going to anyways.
 
 ```{r}
-primary_mixed <- lmer(Total_AUC ~ Primary_Combo + Weight + (1 | Group / Bat_ID), 
+primary_mixed <- lmerTest::lmer(Total_AUC ~ Primary_Combo + Weight + (1 | Group / Bat_ID), 
                       data = Primary_Results)
 
 # Check the summary
 summary(primary_mixed)
 
 primarymixed_emmeans <- emmeans(primary_mixed, ~ Primary_Combo)
+primary_emmeans_df <- as.data.frame(emmeans(primary_mixed, ~ Primary_Combo))
 
 # 2. Run your custom contrasts
 contrast(primarymixed_emmeans, method = primary_subset, adjust = "bonferroni")
 ```
 Okay, this shows that there is no statistically significant difference between sham and noco for any primary days including non-handled days. Bats that were cold at primary were significantly different than noco bats on primary which makes sense, but also on Primary +2 which is interesting.
 
+#### Figure for primary model
 
-### Hyper/Hypo AUC
+```{r}
+em_df <- as.data.frame(primarymixed_emmeans)
+
+# Plot Estimated Marginal Means with Capped Error Bars (95% CI)
+ggplot(em_df, aes(x = Primary_Combo, y = emmean)) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = lower.CL, ymax = upper.CL),
+    width = 0.15,      # Creates the "caps" on error bars
+    linewidth = 0.8
+  ) +
+  labs(
+    x = "Primary Combination Treatment",
+    y = "Estimated Marginal Mean (Total AUC)",
+    title = "Model-Adjusted Total AUC by Primary Combo"
+  ) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+Okay I don't like this...maybe it is just the labels but this feel really hard to follow
+
+```{r}
+em_df_split <- primary_emmeans_df %>%
+  mutate(
+    # Extract Factor A using exact prefix matching
+    Treatment = case_when(
+      str_starts(Primary_Combo, "Primary_Cold") ~ "Cold",
+      str_starts(Primary_Combo, "Primary_NoCo") ~ "NoCo",
+      str_starts(Primary_Combo, "SHAM")         ~ "SHAM",
+      TRUE                                      ~ NA_character_
+    ),
+    
+    # Remove Factor A and the connecting underscore to leave Factor B
+    DateType = case_when(
+      str_starts(Primary_Combo, "Primary_Cold_") ~ str_remove(Primary_Combo, "Primary_Cold_"),
+      str_starts(Primary_Combo, "Primary_NoCo_") ~ str_remove(Primary_Combo, "Primary_NoCo_"),
+      str_starts(Primary_Combo, "SHAM_")         ~ str_remove(Primary_Combo, "SHAM_"),
+      TRUE                                       ~ NA_character_))
+
+em_df_split <- em_df_split |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")))
+
+# Interaction plot with connecting lines and capped error bars
+ggplot(em_df_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = lower.CL, ymax = upper.CL),
+    width = 0.1,
+    linewidth = 0.7
+  ) +
+  labs(
+    x = "DateType",
+    y = "Estimated Marginal Mean (NTD)",
+    color = "Primary Treatment",
+    title = "Interaction Effect on NTD"
+  ) +
+  theme_bw()
+```
+
+Redoing my figure
+
+```{r}
+p_top <- ggplot(
+  subset(em_df_split, Treatment == "NoCo"), 
+  aes(x = DateType, y = emmean, color = Treatment, group = 1)
+) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = lower.CL, ymax = upper.CL),
+    width = 0.1,
+    linewidth = 0.7
+  ) +
+  scale_color_manual(values = primary_colors) +
+  labs(
+    x = "DateType",
+    y = NULL,) +
+  theme_bw() +
+  theme(
+    #axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",
+    panel.grid.major = element_blank(), # Removes major grid lines
+    panel.grid.minor = element_blank()
+  )
+
+print(p_top)
+
+# 2. Bottom 6 Panels: Treatments separated by DateType
+p_bottom <- ggplot(em_df_split, 
+  aes(x = Treatment, y = emmean, color = Treatment, group = Treatment)
+) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = lower.CL, ymax = upper.CL),
+    width = 0.1,
+    linewidth = 0.7
+  ) +
+  scale_color_manual(values = primary_colors) +
+  facet_wrap(~ DateType, ncol = 3) + # Splits into 6 panels (2 rows x 3 columns)
+  labs(
+    x = "Primary Treatment",
+    y = NULL,
+    color = "Primary Treatment" ) +
+  theme_bw() +
+  theme(
+    #axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right", # Set to "right" if you'd prefer a legend on the side
+    panel.grid.major = element_blank(), # Removes major grid lines
+    panel.grid.minor = element_blank()
+  )
+print(p_bottom)
+# 3. Combine Top & Bottom (Height ratio 1:2)
+combined_plot <- (p_top / p_bottom) + 
+  plot_layout(guides = "collect") & 
+  labs(y = "EMMean (NTD)")
+
+p_divider <- ggplot() + 
+  theme_void() + 
+  geom_hline(yintercept = 0.5, color = "gray70", linewidth = 0.8)
+
+# 2. Stack them: Top plot -> Divider line -> Bottom plot (giving the divider a very small height)
+combined_plot <- (p_top / p_divider / p_bottom) + 
+  plot_layout(heights = c(1, 0.05, 2.2), guides = "collect", axis_titles = "collect") & 
+  labs(y = "EMMean (NTD)")
+
+print(combined_plot)
+
+ggsave(
+  filename = "primary_NTDplot.png", 
+  plot = combined_plot, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
+```
+
+Trying to include the raw data
+```{r}
+Primary_raw <- Primary_Results |> 
+  rename("Assigned_treatment" = "Treatment") |> 
+  mutate(
+    # Extract Factor A using exact prefix matching
+    Treatment = case_when(
+      str_starts(Primary_Treatment, "Primary_Cold") ~ "Cold",
+      str_starts(Primary_Treatment, "Primary_NoCo") ~ "NoCo",
+      str_starts(Primary_Treatment, "SHAM")         ~ "SHAM",
+      TRUE                                      ~ NA_character_
+    ))
+
+p_top <- ggplot() +
+  geom_jitter(
+    data = subset(Primary_raw, Treatment == "NoCo"),
+    aes(x = DateType, y = Total_AUC, color = Treatment),
+    width = 0.15, alpha = 0.3, size = 1.5
+  ) +
+  geom_line(
+    data = subset(em_df_split, Treatment == "NoCo"),
+    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = subset(em_df_split, Treatment == "NoCo"),
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = subset(em_df_split, Treatment == "NoCo"),
+    aes(x = DateType, ymin = lower.CL, ymax = upper.CL, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  scale_color_manual(values = primary_colors) +
+  labs(x = "DateType", y = NULL) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+print(p_top)
+
+# 2. Bottom Plot (Faceted treatments with raw data points in the background)
+p_bottom <- ggplot() +
+  geom_jitter(
+    data = Primary_raw,
+    aes(x = Treatment, y = Total_AUC, color = Treatment),
+    width = 0.15, alpha = 0.3, size = 1.5
+  ) +
+  geom_point(
+    data = em_df_split,
+    aes(x = Treatment, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = em_df_split,
+    aes(x = Treatment, ymin = lower.CL, ymax = upper.CL, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  scale_color_manual(values = primary_colors) +
+  facet_wrap(~ DateType, ncol = 3) + 
+  labs(x = "Primary Treatment", y = NULL, color = "Primary Treatment") +
+  theme_bw() +
+  theme(
+    legend.position = "right",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+print(p_bottom)
+
+combined_plot <- (p_top / p_divider / p_bottom) + 
+  plot_layout(heights = c(1, 0.05, 1.9), guides = "collect", axis_titles = "collect") & 
+  labs(y = "EMMean (NTD)") 
+
+print(combined_plot)
+
+ggsave(
+  filename = "primary_NTDplot.png", 
+  plot = combined_plot, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
+```
+
+
+
+### Hypo NTD
 I am going to run the same models with Hypo and Hyper AUC. I am doing this because I want to see if immunized bats had a febrile response and if they did, if the thermal challenge affected that response. The way AUC is calculated currently 'cancels' the extreme values out.
 
 ```{r}
@@ -158,6 +398,59 @@ contrast(p_hypo_emmeans, method = primary_subset, adjust = "bonferroni")
 ```
 
 ```{r}
+hypo_mixed <- lmerTest::lmer(HypoAUC ~ Primary_Combo + Weight + (1 | Group / Bat_ID), 
+                      data = Primary_Results)
+
+# Check the summary
+summary(hypo_mixed)
+
+hypomixed_emmeans <- emmeans(hypo_mixed, ~ Primary_Combo)
+
+levels(hypomixed_emmeans)
+
+# 2. Run your custom contrasts
+contrast(hypomixed_emmeans, method = primary_subset, adjust = "bonferroni")
+```
+
+#### Hypo Figure
+```{r}
+hypo_df_p <- as.data.frame(emmeans(hypo_mixed, ~ Primary_Combo))
+
+hypo_split <- hypo_df_p %>%
+  mutate(
+    # Extract Factor A using exact prefix matching
+    Treatment = case_when(
+      str_starts(Primary_Combo, "Primary_Cold") ~ "Primary_Cold",
+      str_starts(Primary_Combo, "Primary_NoCo") ~ "Primary_NoCo",
+      str_starts(Primary_Combo, "SHAM")         ~ "SHAM",
+      TRUE                                      ~ NA_character_
+    ),
+    
+    # Remove Factor A and the connecting underscore to leave Factor B
+    DateType = str_remove(Primary_Combo, paste0("^", Treatment, "_?"))
+  )
+
+# Interaction plot with connecting lines and capped error bars
+ggplot(hypo_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = lower.CL, ymax = upper.CL),
+    width = 0.1,
+    linewidth = 0.7
+  ) +
+  labs(
+    x = "DateType",
+    y = "Estimated Marginal Mean (Hypo NTD)",
+    color = "Primary Treatment",
+    title = "Interaction Effect on Hypo NTD"
+  ) +
+  theme_bw()
+```
+
+### Hyper NTD
+
+```{r}
 primary_hyper <- glm(HyperAUC ~ Group + Weight + Primary_Combo, data = Primary_Results)
 
 p_hyper_emmeans <- emmeans(primary_hyper, ~ Primary_Combo)
@@ -167,7 +460,7 @@ contrast(p_hyper_emmeans, method = primary_subset, adjust = "bonferroni")
 Okay, this is very interesting. I am going to run this as a mixed effects model just so I am including Bat_ID still
 
 ```{r}
-hyper_mixed <- lmer(HyperAUC ~ Primary_Combo + Weight + (1 | Group / Bat_ID), 
+hyper_mixed <- lmerTest::lmer(HyperAUC ~ Primary_Combo + Weight + (1 | Group / Bat_ID), 
                       data = Primary_Results)
 
 # Check the summary
@@ -177,8 +470,46 @@ hypermixed_emmeans <- emmeans(hyper_mixed, ~ Primary_Combo)
 
 levels(hypermixed_emmeans)
 
+
+
 # 2. Run your custom contrasts
 contrast(hypermixed_emmeans, method = primary_subset, adjust = "bonferroni")
+```
+#### Hyper Figure 
+
+```{r}
+hyper_df_p <- as.data.frame(emmeans(hyper_mixed, ~ Primary_Combo))
+
+hyper_split <- hyper_df_p %>%
+  mutate(
+    # Extract Factor A using exact prefix matching
+    Treatment = case_when(
+      str_starts(Primary_Combo, "Primary_Cold") ~ "Primary_Cold",
+      str_starts(Primary_Combo, "Primary_NoCo") ~ "Primary_NoCo",
+      str_starts(Primary_Combo, "SHAM")         ~ "SHAM",
+      TRUE                                      ~ NA_character_
+    ),
+    
+    # Remove Factor A and the connecting underscore to leave Factor B
+    DateType = str_remove(Primary_Combo, paste0("^", Treatment, "_?"))
+  )
+
+# Interaction plot with connecting lines and capped error bars
+ggplot(hyper_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = lower.CL, ymax = upper.CL),
+    width = 0.1,
+    linewidth = 0.7
+  ) +
+  labs(
+    x = "DateType",
+    y = "Estimated Marginal Mean (Hyper NTD)",
+    color = "Primary Treatment",
+    title = "Interaction Effect on Hyper NTD"
+  ) +
+  theme_bw()
 ```
 
 ## Secondary Models
@@ -270,7 +601,7 @@ contrast(secondary_emmeans2, method = secondary_subset, adjust = "bonferroni")
 
 Running mixed effects model.. 
 ```{r}
-secondary_mixed <- lmer(Total_AUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
+secondary_mixed <- lmerTest::lmer(Total_AUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
                       data = Secondary_Results_filtered)
 
 # Check the summary
@@ -283,7 +614,49 @@ contrast(secondarymixed_emmeans, method = secondary_subset, adjust = "bonferroni
 ```
 So there is no statistically difference in AUC between SHAM and NoCo, CP+S and CS, or NoCo and CP on any day. CP+S had a significantly lower AUC than CP on D21 and CS had a significantly lower AUC than Noco on D21. 
 
-### Hyper/Hypo Models
+#### Secondary Figure
+
+```{r}
+Sec_df <- as.data.frame(secondarymixed_emmeans)
+
+sec_df_split <- Sec_df %>%
+  mutate(
+    # Extract Factor A using exact prefix matching
+    Treatment = case_when(
+      str_starts(Group_Combo, "CP\\+S") ~ "CP+S",
+      str_starts(Group_Combo, "CP") ~ "CP",
+      str_starts(Group_Combo, "CS")  ~ "CS",
+      str_starts(Group_Combo, "NoCo")  ~ "NoCo",
+      str_starts(Group_Combo, "SHAM")  ~ "SHAM",
+      TRUE                                      ~ NA_character_
+    )) |> 
+  mutate(
+    DateType = Group_Combo %>% 
+      # Remove Factor_A literally
+      str_remove(fixed(Treatment)) %>% 
+      # Remove any leading underscore that was left behind
+      str_remove("^_"))
+
+# Interaction plot with connecting lines and capped error bars
+ggplot(sec_df_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = lower.CL, ymax = upper.CL),
+    width = 0.1,
+    linewidth = 0.7
+  ) +
+  labs(
+    x = "DateType",
+    y = "Estimated Marginal Mean (NTD)",
+    color = "Secondary Treatment",
+    title = "Interaction Effect on NTD"
+  ) +
+  theme_bw()
+```
+
+
+### Hypo Models
 I am going to run the same models with Hypo and Hyper AUC. I am doing this because I want to see if immunized bats had a febrile response and if they did, if the thermal challenge affected that response. The way AUC is calculated currently 'cancels' the extreme values out.
 
 ```{r}
@@ -295,7 +668,7 @@ contrast(s_hypo_emmeans, method = secondary_subset, adjust = "bonferroni")
 ```
 **I tried running this on hyper and i was getting an error. I think the error was because variance for hyper was almost 0, so they model was not able to factor in group and bat_id as a random effect.**
 ```{r}
-s_hypo_mixed <- lmer(HypoAUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
+s_hypo_mixed <- lmerTest::lmer(HypoAUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
                       data = Secondary_Results_filtered)
 
 # Check the summary
@@ -307,7 +680,48 @@ s_hypo_emmeans <- emmeans(s_hypo_mixed, ~ Group_Combo)
 contrast(s_hypo_emmeans, method = secondary_subset, adjust = "bonferroni")
 ```
 
+#### Hypo Figure
 
+```{r}
+S_hypo_df <- as.data.frame(s_hypo_emmeans)
+
+s_hypo_split <- S_hypo_df %>%
+  mutate(
+    # Extract Factor A using exact prefix matching
+    Treatment = case_when(
+      str_starts(Group_Combo, "CP\\+S") ~ "CP+S",
+      str_starts(Group_Combo, "CP") ~ "CP",
+      str_starts(Group_Combo, "CS")  ~ "CS",
+      str_starts(Group_Combo, "NoCo")  ~ "NoCo",
+      str_starts(Group_Combo, "SHAM")  ~ "SHAM",
+      TRUE                                      ~ NA_character_
+    )) |> 
+  mutate(
+    DateType = Group_Combo %>% 
+      # Remove Factor_A literally
+      str_remove(fixed(Treatment)) %>% 
+      # Remove any leading underscore that was left behind
+      str_remove("^_"))
+
+# Interaction plot with connecting lines and capped error bars
+ggplot(s_hypo_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = lower.CL, ymax = upper.CL),
+    width = 0.1,
+    linewidth = 0.7
+  ) +
+  labs(
+    x = "DateType",
+    y = "Estimated Marginal Mean (Hypo NTD)",
+    color = "Secondary Treatment",
+    title = "Interaction Effect on Hypo NTD"
+  ) +
+  theme_bw()
+```
+
+### Hyper Models
 ```{r}
 secondary_hyper <- glm(HyperAUC ~ Group + Weight + Group_Combo, data = Secondary_Results_filtered)
 
@@ -317,7 +731,7 @@ contrast(s_hyper_emmeans, method = secondary_subset, adjust = "bonferroni")
 ```
 
 ```{r}
-s_hyper_mixed <- lmer(HyperAUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
+s_hyper_mixed <- lmerTest::lmer(HyperAUC ~ Group_Combo + Weight + (1 | Group / Bat_ID), 
                       data = Secondary_Results_filtered)
 
 # Check the summary
@@ -330,7 +744,7 @@ contrast(s_hypermixed_emmeans, method = secondary_subset, adjust = "bonferroni")
 ```
 
 ```{r}
-s_hyper_mixed2 <- lmer(HyperAUC ~ Group_Combo + Weight + (1 | Bat_ID), 
+s_hyper_mixed2 <- lmerTest::lmer(HyperAUC ~ Group_Combo + Weight + (1 | Bat_ID), 
                       data = Secondary_Results_filtered)
 
 # Check the summary
@@ -342,13 +756,51 @@ s_hypermixed_emmeans2 <- emmeans(s_hyper_mixed2, ~ Group_Combo)
 contrast(s_hypermixed_emmeans2, method = secondary_subset, adjust = "bonferroni")
 ```
 
+#### Hyper Figure
+
+```{r}
+S_hyper_df <- as.data.frame(s_hypermixed_emmeans2)
+
+s_hyper_split <- S_hyper_df %>%
+  mutate(
+    # Extract Factor A using exact prefix matching
+    Treatment = case_when(
+      str_starts(Group_Combo, "CP\\+S") ~ "CP+S",
+      str_starts(Group_Combo, "CP") ~ "CP",
+      str_starts(Group_Combo, "CS")  ~ "CS",
+      str_starts(Group_Combo, "NoCo")  ~ "NoCo",
+      str_starts(Group_Combo, "SHAM")  ~ "SHAM",
+      TRUE                                      ~ NA_character_
+    )) |> 
+  mutate(
+    DateType = Group_Combo %>% 
+      # Remove Factor_A literally
+      str_remove(fixed(Treatment)) %>% 
+      # Remove any leading underscore that was left behind
+      str_remove("^_"))
+
+# Interaction plot with connecting lines and capped error bars
+ggplot(s_hyper_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = lower.CL, ymax = upper.CL),
+    width = 0.1,
+    linewidth = 0.7
+  ) +
+  labs(
+    x = "DateType",
+    y = "Estimated Marginal Mean (Hyper NTD)",
+    color = "Secondary Treatment",
+    title = "Interaction Effect on Hyper NTD"
+  ) +
+  theme_bw()
+```
+
 ## Longitudinal Models
 
 Okay, for these models I need to keep bats that have data from both D0 and D21
 ```{r}
-Analysis_results <- Analysis_results |> 
-  mutate(Treatment = factor(Treatment, levels = c("SHAM", "NoCo", "CP", "CS", "CP+S")))
-
 D0 <- Analysis_results |> 
   filter(ExperimentDay == "D0") |> 
   rename(AUC_D0 = "Total_AUC",
@@ -416,13 +868,13 @@ Basal_TC_1 <- Analysis_results |>
 Full_1 <- inner_join(D0, D21, join_by(Bat_ID)) |> 
   inner_join(Basal_TC, join_by(Bat_ID))
 
-TC_bats_full <- lmer(AUC_D21 ~ Treatment + AUC_BTC + AUC_D0 + (1 | Bat_ID), 
-                      data = Full_1)
+# TC_bats_full <- lmer(AUC_D21 ~ Treatment + AUC_BTC + AUC_D0 + (1 | Bat_ID), 
+#                      data = Full_1)
 ```
 Okay, I talked to Ken and because I can't use Bat_ID as random effect I will try using treatment. However, I don't really want to 'ignore' treatment. But I'll run it anyways. 
 
 ```{r}
-TC_bats_full_2 <- lmer(AUC_D21 ~ AUC_BTC + AUC_D0 + (1 | Treatment), 
+TC_bats_full_2 <- lmerTest::lmer(AUC_D21 ~ AUC_BTC + AUC_D0 + (1 | Treatment), 
                       data = Full_1)
 
 summary(TC_bats_full_2)
@@ -437,7 +889,11 @@ summary(TC_bats_glm)
 Again, this makes sense. CP+S and CS at the secondary is significanlty different than CP. But there is no correlation found between NTD on day 21 and D0 or BTC. The last thing I am going to do is just look at all my bats and only D0 vs D21. 
 
 ```{r}
-Full_2 <- inner_join(D0, D21, join_by(Bat_ID))
+Full_2 <- inner_join(D0, D21, join_by(Bat_ID)) |> 
+  select(! Treatment.y) |> 
+  select(! Group.y) |> 
+  rename(Treatment = "Treatment.x",
+         Group = "Group.x")
 
 All_bats_glm <- glm(AUC_D21 ~ Treatment + AUC_D0, 
                       data = Full_2)
@@ -506,10 +962,12 @@ Similar to AUC, only hyper AUC on D1 was correlated with hyper AUC on D0. Not su
 ```{r}
 Secondary_Days <- inner_join(D21, D22, join_by(Bat_ID)) |> 
   inner_join(D23, join_by(Bat_ID)) |> 
-  inner_join(D24, join_by(Bat_ID)) |> 
+  inner_join(D24, join_by(Bat_ID)) 
+
+Secondary_Days <- Secondary_Days |> 
   select(Bat_ID, AUC_D21, AUC_D22, AUC_D23, AUC_D24, Treatment.x, Group.x) |> 
  rename(Group = "Group.x", 
-         Treatment = "Treatment.x")
+        Treatment = "Treatment.x")
 ```
 
 ```{r}
@@ -525,10 +983,68 @@ Secondary_long_glm_3 <- glm(AUC_D23 ~ Treatment + AUC_D21,
                       data = Secondary_Days)
 summary(Secondary_long_glm_3)
 ```
+## Weight Models
+
+I am interested in if there was a difference in weight change between groups. So I am going to make a column that is delta Weight. 
+
+```{r}
+Analysis_results <- Analysis_results |> 
+  arrange(Bat_ID, Day_Num) |> 
+  group_by(Bat_ID) |> 
+  mutate(Day_gap = lead(Day_Num) - Day_Num,
+         weight_diff = if_else(Day_gap == 1,
+                               lead(Weight) - Weight,
+                               NA_real_)) |> 
+  ungroup()
+
+Weight_analysis <- Analysis_results |> 
+  filter(ExperimentDay %in% c("D0", "D1", "D2", "D3", "D21", "D22", "D23", "D24")) |> mutate(Phase = case_when(ExperimentDay %in% c("D0", "D1", "D2", "D3") ~ "Primary",
+                        ExperimentDay %in% c("D21", "D22", "D23", "D24") ~ "Secondary",
+                        TRUE ~ NA_character_),
+      Post_inject = case_when(
+      ExperimentDay %in% c("D0", "D21") ~ 0,
+      ExperimentDay %in% c("D1", "D22") ~ 1,
+      ExperimentDay %in% c("D2", "D23") ~ 2,
+      ExperimentDay %in% c("D3", "D24") ~ 3,
+      TRUE ~ NA_real_ ))
+```
+
+```{r}
+weight_model1 <- lmerTest::lmer(weight_diff ~ Treatment * HypoAUC + Treatment * HyperAUC + (1| Bat_ID), data = Weight_analysis)
+
+summary(weight_model1)
+```
+Variance from bat_id is 0, so once I have accounted for treatment and hyper and hypo auc there is no difference left for bat_id to account for. Going to run as a regular lm first 
+
+```{r}
+weight_model_lm <- lm(
+  weight_diff ~ Treatment * HyperAUC + Treatment * HypoAUC + ExperimentDay,
+  data = Weight_analysis)
+
+summary(weight_model_lm)
+```
+I ran these results through gemini and because my experiment days are different from each other, it recommended I add a days post injection and phase (primary or secondary). I'll run it again with this.. not sure if that is really allowed. 
+
+```{r}
+weight_model_lm2 <- lm(
+  weight_diff ~ Treatment * HyperAUC + Treatment * HypoAUC + Phase + Post_inject,
+  data = Weight_analysis)
+
+summary(weight_model_lm2)
+```
+So there is no significant effect on weight including treatment. I originally asked gemini to include treatment but I'm not sure this was the best thing to do since I had bats that went hot even in cold chambers. However, dropping treatment groups sham bats with all other immunized bats so... I'll talk to Ken about this. 
+
+```{r}
+weight_model_lm3 <- lm(
+  weight_diff ~ HyperAUC + HypoAUC + Phase + Post_inject,
+  data = Weight_analysis)
+
+summary(weight_model_lm3)
+```
 
 
 
-### Older models that I ran.... 
+# Older models that I ran.... 
 Okay, now running some models to look at AUC with treatment and date type.
 ```{r}
 treatment_glm <- glm(Total_AUC ~ DateType * Treatment, data = Analysis_results)
@@ -734,8 +1250,8 @@ basal_analysis <- Analysis_results |>
 
 basal <- glm(Total_AUC ~ Cage, data = basal_analysis)
 summary(basal)
-basal_comps <- glht(basal, linfct = mcp(Cage = "Tukey"))
-summary(basal_comps)
+#basal_comps <- glht(basal, linfct = mcp(Cage = "Tukey"))
+#summary(basal_comps)
 ```
 So it looks like cage did not effect AUC.
 
@@ -755,8 +1271,8 @@ CS_TC <- Analysis_results |>
 
 BP_Analysis <- glm(Total_AUC ~ DateType, data = BP_TC_analysis)
 summary(BP_Analysis)
-comps <- glht(BP_Analysis, linfct = mcp(DateType = "Tukey"))
-summary(comps)
+#comps <- glht(BP_Analysis, linfct = mcp(DateType = "Tukey"))
+#summary(comps)
 
 CP_TCglm <- glm(Total_AUC ~ DateType, data = CP_TC)
 summary(CP_TCglm)
@@ -917,13 +1433,6 @@ Primary_Secondary_hist <- Analysis_results |>
   filter(DateType %in% c("Primary", "Primary + 1", "Primary + 2", "Primary + 3", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")) |> 
   mutate(DateType = fct_relevel(DateType, "Primary", "Secondary", "Primary + 1", "Secondary + 1", "Primary + 2", "Secondary + 2", "Primary + 3",  "Secondary + 3")) |> 
   mutate(Treatment = fct_relevel(Treatment, "CP", "CP+S", "CS", "NoCo", "SHAM"))
-
-treatmentcolors <- c("CP" = "#9EB0FFFF",
-            "CP+S" = "#2D7597FF",
-            "CS" = "#FFACACFF", 
-            "NoCo" =  "#8A3F2A",
-            "SHAM" = "#11181DFF",
-            "Tnorm" = "black")
 
 Hist <- ggplot(Primary_Secondary_hist, aes(x= Total_AUC, fill = Treatment)) +
   geom_histogram(binwidth = 200) +
