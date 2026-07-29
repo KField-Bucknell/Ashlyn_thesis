@@ -1058,7 +1058,7 @@ Results_Analysis <- Results_Analysis|>
        NumberDate %in% c(1759240801: 1759326601) ~ "Secondary + 1",
        NumberDate %in% c(1759327201: 1759413001) ~ "Secondary + 2",
        NumberDate %in% c(1759413601: 1759499401) ~ "Secondary + 3",
-     NumberDate %in% c(1759759201: 1759845001) ~ "D27",
+     NumberDate %in% c(1759672801: 1759758601) ~ "D27",
       NumberDate %in% c(1759759201: 1759845001) ~ "D28",
       Day_Number < 0 ~ "Pre",  
       TRUE ~ "None"))
