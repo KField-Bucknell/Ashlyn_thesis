@@ -35,6 +35,7 @@ if (!require("performance")) install.packages("performance"); library(performanc
 if (!require("MASS")) install.packages("MASS"); library(MASS)
 if (!require("lmerTest")) install.packages("lmerTest"); library(lmerTest)
 if (!require("patchwork")) install.packages("patchwork"); library(patchwork)
+if (!require("ggsignif")) install.packages("ggsignif"); library(ggsignif)
 
 
 
@@ -823,7 +824,7 @@ summary(secondary_mixed)
 secondarymixed_emmeans <- emmeans(secondary_mixed, ~ Group_Combo)
 
 # 2. Run your custom contrasts
-contrast(secondarymixed_emmeans, method = secondary_subset, adjust = "bonferroni")
+secondary_contrasts <- as.data.frame(contrast(secondarymixed_emmeans, method = secondary_subset, adjust = "bonferroni"))
 ```
 So there is no statistically difference in AUC between SHAM and NoCo, CP+S and CS, or NoCo and CP on any day. CP+S had a significantly lower AUC than CP on D21 and CS had a significantly lower AUC than Noco on D21. 
 
@@ -881,6 +882,54 @@ Secondary_Raw <- Secondary_Results_filtered |>
   mutate(Treatment = factor(Treatment, levels = c("NoCo", "CP", "CP+S", "CS", "SHAM")))
 ```
 
+I want to add significant bars
+```{r}
+Secondary_sig_bars <- secondary_contrasts
+Secondary_sig_bars <- Secondary_sig_bars |> 
+  mutate(DateType = case_when(
+    grepl("_S", contrast) ~ "Secondary",
+    grepl("_1", contrast) ~ "Secondary + 1",
+    grepl("_2", contrast) ~ "Secondary + 2",
+    grepl("_3", contrast) ~ "Secondary + 3",
+    grepl("_-1", contrast) ~ "Secondary - 1",
+    grepl("_None", contrast) ~ "None",
+    TRUE ~ "other"))
+
+Secondary_sig_bars <- Secondary_sig_bars |> 
+  mutate(Left = case_when(
+    grepl("SvN_", contrast) ~ "NoCo",
+    grepl("NvCP_", contrast) ~ "NoCo",
+    grepl("CPSvCS_", contrast) ~ "CP+S",
+    grepl("CPvCPS_", contrast) ~ "CP",
+    grepl("NvCS_", contrast) ~ "NoCo",
+    TRUE ~ "other"))
+
+Secondary_sig_bars <- Secondary_sig_bars |> 
+  mutate(Right = case_when(
+    grepl("SvN_", contrast) ~ "SHAM",
+    grepl("NvCP_", contrast) ~ "CP",
+    grepl("CPSvCS_", contrast) ~ "CS",
+    grepl("CPvCPS_", contrast) ~ "CP+S",
+    grepl("NvCS_", contrast) ~ "CS",
+    TRUE ~ "other"))
+
+Secondary_sig_bars <- Secondary_sig_bars |> 
+  mutate(annotation = case_when(
+      p.value < 0.001 ~ "***",
+      p.value < 0.01  ~ "**",
+      p.value < 0.05  ~ "*" ))
+
+Secondary_sig_bars <- Secondary_sig_bars |> 
+  filter(p.value < 0.05)
+
+Secondary_sig_bars <- Secondary_sig_bars |> 
+  mutate(y_position = case_when(
+    contrast == "CPvCPS_S" ~ 23,
+    contrast == "NvCS_S" ~ 59  ))
+
+```
+
+
 ```{r}
 s_top <- ggplot() +
   geom_jitter(
@@ -928,8 +977,17 @@ s_bottom <- ggplot() +
   geom_point(
     data = sec_df_split,
     aes(x = Treatment, y = emmean, fill = Treatment),
-    shape = 22, color = "black", stroke = 0.5, size = 3
-  ) +
+    shape = 22, color = "black", stroke = 0.5, size = 3) +
+  geom_signif(data = Secondary_sig_bars,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = annotation, 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = 0.02,
+    textsize = 4.5,
+    vjust = 0.6) +
+  coord_cartesian(ylim = c(-350, 70)) +
   scale_color_manual(values = treatmentcolors) +
   scale_fill_manual(values = treatmentcolors) +
   facet_wrap(~ DateType, ncol = 3) + 
@@ -938,8 +996,7 @@ s_bottom <- ggplot() +
   theme(
     legend.position = "none",
     panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
-  )
+    panel.grid.minor = element_blank())
 print(s_bottom)
 
 secondary_plot <- (s_top / p_divider / s_bottom) + 
