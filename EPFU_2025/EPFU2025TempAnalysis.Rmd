@@ -160,8 +160,10 @@ primarymixed_emmeans <- emmeans(primary_mixed, ~ Primary_Combo)
 primary_emmeans_df <- as.data.frame(primarymixed_emmeans)
 
 # 2. Run your custom contrasts
-contrast(primarymixed_emmeans, method = primary_subset, adjust = "bonferroni")
+primary_contrasts <- as.data.frame(contrast(primarymixed_emmeans, method = primary_subset, adjust = "bonferroni"))
 ```
+
+redoing all my models without group becaus
 Okay, this shows that there is no statistically significant difference between sham and noco for any primary days including non-handled days. Bats that were cold at primary were significantly different than noco bats on primary which makes sense, but also on Primary +2 which is interesting.
 
 #### Figure for primary model
@@ -371,6 +373,59 @@ Primary_raw <- Primary_Results |>
     ))
 ```
 
+Also adding significant bars
+```{r}
+prim_sig_bars <- primary_contrasts
+prim_sig_bars <- prim_sig_bars |> 
+  mutate(DateType = case_when(
+    grepl("_P", contrast) ~ "Primary",
+    grepl("_1", contrast) ~ "Primary + 1",
+    grepl("_2", contrast) ~ "Primary + 2",
+    grepl("_3", contrast) ~ "Primary + 3",
+    grepl("_-1", contrast) ~ "Primary - 1",
+    grepl("_None", contrast) ~ "None",
+    TRUE ~ "other"))
+
+prim_sig_bars <- prim_sig_bars |> 
+  mutate(Left = case_when(
+    grepl("SvN_", contrast) ~ "NoCo",
+    grepl("NvC", contrast) ~ "NoCo",
+    TRUE ~ "other"))
+
+prim_sig_bars <- prim_sig_bars |> 
+  mutate(Right = case_when(
+    grepl("SvN_", contrast) ~ "SHAM",
+    grepl("NvC", contrast) ~ "Cold",
+    TRUE ~ "other"),
+    p.value2 = sprintf("%.2e", p.value))
+
+comparison_bars_primary <- prim_sig_bars 
+
+prim_sig_bars <- prim_sig_bars |> 
+  mutate(annotation = paste("P-Value =", p.value2))
+
+prim_sig_bars <- prim_sig_bars |> 
+  filter(p.value < 0.05)
+
+prim_sig_bars <- prim_sig_bars |> 
+ mutate(y_position = case_when(
+    contrast == "NvC_P" ~ 130,
+    contrast == "NvC_2" ~ 100  ))
+
+```
+
+Making bars for my comparison to add in the primary +3 facet
+```{r}
+comparison_bars_primary <- comparison_bars_primary |> 
+  filter(DateType == "Primary + 3")
+
+comparison_bars_primary <- comparison_bars_primary |> 
+ mutate(y_position = case_when(
+    contrast == "SvN_3" ~ -220,
+    contrast == "NvC_3" ~ -180  ))
+```
+
+
 This is my 95%
 ```{r}
 p_top95 <- ggplot() +
@@ -421,6 +476,25 @@ p_bottom95 <- ggplot() +
     aes(x = Treatment, y = emmean, fill = Treatment),
     shape = 22, color = "black", stroke = 0.5, size = 3
   ) +
+   geom_signif(data = prim_sig_bars,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = annotation, 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = 0.04,
+    textsize = 3,
+    vjust = -0.6) +
+  geom_signif(data = comparison_bars_primary,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = "", 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = -0.05,
+    textsize = 3,
+    vjust = -0.6) +
+    coord_cartesian(ylim = c(-300, 150)) +
   scale_color_manual(values = primary_colors) +
   scale_fill_manual(values = primary_colors) +
   facet_wrap(~ DateType, ncol = 3) + 
@@ -917,15 +991,35 @@ Secondary_sig_bars <- Secondary_sig_bars |>
   mutate(annotation = case_when(
       p.value < 0.001 ~ "***",
       p.value < 0.01  ~ "**",
-      p.value < 0.05  ~ "*" ))
+      p.value < 0.05  ~ "*" ),
+      p.value2 = sprintf("%.2e", p.value))
+
+comparison_bars_secondary <- Secondary_sig_bars 
+
+Secondary_sig_bars <- Secondary_sig_bars |> 
+  mutate(annotation = paste("P-Value =", p.value2))
 
 Secondary_sig_bars <- Secondary_sig_bars |> 
   filter(p.value < 0.05)
 
 Secondary_sig_bars <- Secondary_sig_bars |> 
   mutate(y_position = case_when(
-    contrast == "CPvCPS_S" ~ 23,
-    contrast == "NvCS_S" ~ 59  ))
+    contrast == "CPvCPS_S" ~ 22,
+    contrast == "NvCS_S" ~ 62  ))
+```
+
+Making bars for my comparison to add in the primary +3 facet
+```{r}
+comparison_bars_secondary <- comparison_bars_secondary |> 
+  filter(DateType == "Secondary + 3")
+
+comparison_bars_secondary <- comparison_bars_secondary |> 
+ mutate(y_position = case_when(
+    contrast == "SvN_3" ~ -330,
+    contrast == "NvCP_3" ~ -180,
+     contrast == "CPSvCS_3" ~ -250,
+    contrast == "CPvCPS_3" ~ -210,
+     contrast == "NvCS_3" ~ -290))
 
 ```
 
@@ -985,9 +1079,18 @@ s_bottom <- ggplot() +
       y_position = y_position),
     manual = TRUE,
     tip_length = 0.02,
-    textsize = 4.5,
-    vjust = 0.6) +
-  coord_cartesian(ylim = c(-350, 70)) +
+    textsize = 3,
+    vjust = -0.5) +
+   geom_signif(data = comparison_bars_secondary,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = "", 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = -0.05,
+    textsize = 3,
+    vjust = -0.6) +
+  coord_cartesian(ylim = c(-350, 80)) +
   scale_color_manual(values = treatmentcolors) +
   scale_fill_manual(values = treatmentcolors) +
   facet_wrap(~ DateType, ncol = 3) + 
@@ -1036,6 +1139,20 @@ s_hypo_emmeans <- emmeans(s_hypo_mixed, ~ Group_Combo)
 # 2. Run your custom contrasts
 contrast(s_hypo_emmeans, method = secondary_subset, adjust = "bonferroni")
 ```
+
+```{r}
+s_hypo_mixed2 <- lmerTest::lmer(HypoAUC ~ Group_Combo + Weight + (1 | Bat_ID), 
+                      data = Secondary_Results_filtered)
+
+# Check the summary
+summary(s_hypo_mixed2)
+
+s_hypo_emmeans2 <- emmeans(s_hypo_mixed2, ~ Group_Combo)
+
+# 2. Run your custom contrasts
+contrast(s_hypo_emmeans2, method = secondary_subset, adjust = "bonferroni")
+```
+
 
 #### Hypo Figure
 
@@ -1309,9 +1426,6 @@ HyperD3 <- glm(HyperD3 ~ Treatment + AUC_D0,
 summary(HyperD3)
 ```
 
-
-
-
 Similar to AUC, only hyper AUC on D1 was correlated with hyper AUC on D0. Not sure this is the best way to run this though....
 
 
@@ -1340,6 +1454,14 @@ Secondary_long_glm_3 <- glm(AUC_D23 ~ Treatment + AUC_D21,
                       data = Secondary_Days)
 summary(Secondary_long_glm_3)
 ```
+
+### Basal vs Primary Model
+
+```{r}
+
+```
+
+
 ## Weight Models
 
 I am interested in if there was a difference in weight change between groups. So I am going to make a column that is delta Weight. 
