@@ -136,7 +136,7 @@ primary_subset <- list(
 
 # 3. Run the contrast. 
 # R will automatically apply these exact vectors to Males, and then to Females.
-contrast(primary_emmeans, method = primary_subset, adjust = "bonferroni")
+contrast(primary_emmeans, method = primary_subset, adjust = "fdr")
 ```
 Okay, I am getting NAs and I think it is because of Bat_ID
 I am going to rerun the model without Bat_ID
@@ -145,7 +145,7 @@ primary_glm2 <- glm(Total_AUC ~ Group + Weight + Primary_Combo, data = Primary_R
 
 primary_emmeans2 <- emmeans(primary_glm2, ~ Primary_Combo)
 
-contrast(primary_emmeans2, method = primary_subset, adjust = "bonferroni")
+contrast(primary_emmeans2, method = primary_subset, adjust = "fdr")
 ```
 Okay this ran and the significant values make sense; however, after asking some questions with gemini I don't think I can ignore Bat_ID because the glm assumes that every row is independent of other rows. Since bat_id is found multiple times across rows they are not independent of each other. It wants me to run a mixed effects model. I know Ken and I talked about this and he doesnt want me to run one, but I am going to anyways.
 
@@ -160,33 +160,13 @@ primarymixed_emmeans <- emmeans(primary_mixed, ~ Primary_Combo)
 primary_emmeans_df <- as.data.frame(primarymixed_emmeans)
 
 # 2. Run your custom contrasts
-primary_contrasts <- as.data.frame(contrast(primarymixed_emmeans, method = primary_subset, adjust = "bonferroni"))
+primary_contrasts <- as.data.frame(contrast(primarymixed_emmeans, method = primary_subset, adjust = "fdr"))
 ```
 
 redoing all my models without group becaus
 Okay, this shows that there is no statistically significant difference between sham and noco for any primary days including non-handled days. Bats that were cold at primary were significantly different than noco bats on primary which makes sense, but also on Primary +2 which is interesting.
 
 #### Figure for primary model
-
-```{r}
-# Plot Estimated Marginal Means with Capped Error Bars (95% CI)
-ggplot(primary_emmeans_df, aes(x = Primary_Combo, y = emmean)) +
-  geom_point(size = 3) +
-  geom_errorbar(
-    aes(ymin = lower.CL, ymax = upper.CL),
-    width = 0.15,      # Creates the "caps" on error bars
-    linewidth = 0.8
-  ) +
-  labs(
-    x = "Primary Combination Treatment",
-    y = "Estimated Marginal Mean (Total AUC)",
-    title = "Model-Adjusted Total AUC by Primary Combo"
-  ) +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-Okay I don't like this...maybe it is just the labels but this feel really hard to follow
 
 ```{r}
 em_df_split <- primary_emmeans_df %>%
@@ -207,156 +187,17 @@ em_df_split <- primary_emmeans_df %>%
       TRUE                                       ~ NA_character_))
 
 em_df_split <- em_df_split |> 
-  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")))
-
-em_df_split <- em_df_split |> 
-  mutate(Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")))
-
-# Interaction plot with connecting lines and capped error bars
-ggplot(em_df_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 3) +
-  geom_errorbar(
-    aes(ymin = lower.CL, ymax = upper.CL),
-    width = 0.1,
-    linewidth = 0.7
-  ) +
-  labs(
-    x = "DateType",
-    y = "Estimated Marginal Mean (NTD)",
-    color = "Primary Treatment",
-    title = "Interaction Effect on NTD"
-  ) +
-  theme_bw()
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")),
+         SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
 ```
 
-Redoing my figure
-
+Makes the divider between top and bottom figures
 ```{r}
-p_top <- ggplot(
-  subset(em_df_split, Treatment == "NoCo"), 
-  aes(x = DateType, y = emmean, color = Treatment, group = 1)
-) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 3) +
-  geom_errorbar(
-    aes(ymin = lower.CL, ymax = upper.CL),
-    width = 0.1,
-    linewidth = 0.7
-  ) +
-  scale_color_manual(values = primary_colors) +
-  labs(
-    x = "DateType",
-    y = NULL,) +
-  theme_bw() +
-  theme(
-    #axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "none",
-    panel.grid.major = element_blank(), # Removes major grid lines
-    panel.grid.minor = element_blank()
-  )
-
-print(p_top)
-
-# 2. Bottom 6 Panels: Treatments separated by DateType
-p_bottom <- ggplot(em_df_split, 
-  aes(x = Treatment, y = emmean, color = Treatment, group = Treatment)
-) +
-  geom_point(size = 3) +
-  geom_errorbar(
-    aes(ymin = lower.CL, ymax = upper.CL),
-    width = 0.1,
-    linewidth = 0.7
-  ) +
-  scale_color_manual(values = primary_colors) +
-  facet_wrap(~ DateType, ncol = 3) + # Splits into 6 panels (2 rows x 3 columns)
-  labs(
-    x = "Primary Treatment",
-    y = NULL,
-    color = "Primary Treatment" ) +
-  theme_bw() +
-  theme(
-    #axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "right", # Set to "right" if you'd prefer a legend on the side
-    panel.grid.major = element_blank(), # Removes major grid lines
-    panel.grid.minor = element_blank()
-  )
-print(p_bottom)
-# 3. Combine Top & Bottom (Height ratio 1:2)
-combined_plot <- (p_top / p_bottom) + 
-  plot_layout(guides = "collect") & 
-  labs(y = "EMMean (NTD)")
-
 p_divider <- ggplot() + 
   theme_void() + 
   geom_hline(yintercept = 0.5, color = "gray70", linewidth = 0.8)
-
-# 2. Stack them: Top plot -> Divider line -> Bottom plot (giving the divider a very small height)
-combined_plot <- (p_top / p_divider / p_bottom) + 
-  plot_layout(heights = c(1, 0.05, 2.2), guides = "collect", axis_titles = "collect") & 
-  labs(y = "EMMean (NTD)")
-
-print(combined_plot)
-
-ggsave(
-  filename = "primary_NTDplot.png", 
-  plot = combined_plot, 
-  width = 8,  # Narrower width (inches)
-  height = 10,  # Much taller height (inches)
-  dpi = 300)
-```
-
-Trying to include the raw data. Ken also wants to look at 75% CI instead of 95%
-```{r}
-p_emmean_75 <- as.data.frame(primarymixed_emmeans, level = 0.75)
-
-split_75 <- p_emmean_75 %>%
-  mutate(
-    # Extract Factor A using exact prefix matching
-    Treatment = case_when(
-      str_starts(Primary_Combo, "Primary_Cold") ~ "Cold",
-      str_starts(Primary_Combo, "Primary_NoCo") ~ "NoCo",
-      str_starts(Primary_Combo, "SHAM")         ~ "SHAM",
-      TRUE                                      ~ NA_character_
-    ),
-    
-    # Remove Factor A and the connecting underscore to leave Factor B
-    DateType = case_when(
-      str_starts(Primary_Combo, "Primary_Cold_") ~ str_remove(Primary_Combo, "Primary_Cold_"),
-      str_starts(Primary_Combo, "Primary_NoCo_") ~ str_remove(Primary_Combo, "Primary_NoCo_"),
-      str_starts(Primary_Combo, "SHAM_")         ~ str_remove(Primary_Combo, "SHAM_"),
-      TRUE                                       ~ NA_character_))
-
-split_75 <- split_75 |> 
-  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")))
-
-split_75 <- split_75 |> 
-  mutate(Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")))
-
-p_emmean_50 <- as.data.frame(primarymixed_emmeans, level = 0.50)
-
-split_50 <- p_emmean_50 %>%
-  mutate(
-    # Extract Factor A using exact prefix matching
-    Treatment = case_when(
-      str_starts(Primary_Combo, "Primary_Cold") ~ "Cold",
-      str_starts(Primary_Combo, "Primary_NoCo") ~ "NoCo",
-      str_starts(Primary_Combo, "SHAM")         ~ "SHAM",
-      TRUE                                      ~ NA_character_
-    ),
-    
-    # Remove Factor A and the connecting underscore to leave Factor B
-    DateType = case_when(
-      str_starts(Primary_Combo, "Primary_Cold_") ~ str_remove(Primary_Combo, "Primary_Cold_"),
-      str_starts(Primary_Combo, "Primary_NoCo_") ~ str_remove(Primary_Combo, "Primary_NoCo_"),
-      str_starts(Primary_Combo, "SHAM_")         ~ str_remove(Primary_Combo, "SHAM_"),
-      TRUE                                       ~ NA_character_))
-
-split_50 <- split_50 |> 
-  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")))
-
-split_50 <- split_50 |> 
-  mutate(Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")))
 ```
 
 Renaming some things in raw data so it matches my dataframe
@@ -371,6 +212,10 @@ Primary_raw <- Primary_Results |>
       str_starts(Primary_Treatment, "SHAM")         ~ "SHAM",
       TRUE                                      ~ NA_character_
     ))
+
+Primary_raw <- Primary_raw |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")))
 ```
 
 Also adding significant bars
@@ -409,7 +254,7 @@ prim_sig_bars <- prim_sig_bars |>
 
 prim_sig_bars <- prim_sig_bars |> 
  mutate(y_position = case_when(
-    contrast == "NvC_P" ~ 130,
+    contrast == "NvC_P" ~ 100,
     contrast == "NvC_2" ~ 100  ))
 
 ```
@@ -423,6 +268,12 @@ comparison_bars_primary <- comparison_bars_primary |>
  mutate(y_position = case_when(
     contrast == "SvN_3" ~ -220,
     contrast == "NvC_3" ~ -180  ))
+
+comparison_bars_primary <- comparison_bars_primary |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")))
+
+prim_sig_bars <- prim_sig_bars |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")))
 ```
 
 
@@ -446,9 +297,10 @@ p_top95 <- ggplot() +
   ) +
   geom_errorbar(
     data = subset(em_df_split, Treatment == "NoCo"),
-    aes(x = DateType, ymin = lower.CL, ymax = upper.CL, color = Treatment),
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
     width = 0.1, linewidth = 0.7
   ) +
+  coord_cartesian(ylim = c(-275, 125)) +
   scale_color_manual(values = primary_colors) +
   labs(x = "DateType", y = NULL) +
   theme_bw() +
@@ -468,7 +320,7 @@ p_bottom95 <- ggplot() +
   ) +
   geom_errorbar(
     data = em_df_split,
-    aes(x = Treatment, ymin = lower.CL, ymax = upper.CL, color = Treatment),
+    aes(x = Treatment, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
     width = 0.1, linewidth = 0.7
   ) +
   geom_point(
@@ -494,7 +346,7 @@ p_bottom95 <- ggplot() +
     tip_length = -0.05,
     textsize = 3,
     vjust = -0.6) +
-    coord_cartesian(ylim = c(-300, 150)) +
+    coord_cartesian(ylim = c(-275, 125)) +
   scale_color_manual(values = primary_colors) +
   scale_fill_manual(values = primary_colors) +
   facet_wrap(~ DateType, ncol = 3) + 
@@ -520,60 +372,126 @@ ggsave(
   height = 10,  # Much taller height (inches)
   dpi = 300)
 ```
+### Longitudinal Primary
 
-This is my 75% CI
 ```{r}
-p_top75 <- ggplot() +
+primary_long_mixed <- lmerTest::lmer(Total_AUC ~ DateType + Weight + Primary_Treatment + (1 | Group / Bat_ID),  data = Primary_Results)
+
+# Check the summary
+summary(primary_long_mixed)
+
+primary_long_emmeans <- emmeans(primary_long_mixed, ~ DateType | Primary_Treatment)
+
+summary(primary_long_emmeans)
+
+primary_long_em_df <- as.data.frame(primary_long_emmeans)
+
+primary_long_pval <- as.data.frame(pairs(primary_long_emmeans, adjust = "fdr"))
+```
+
+##### Longitudinal figure
+
+```{r}
+plong_em_split <- primary_long_em_df %>%
+  mutate(
+    # Extract Factor A using exact prefix matching
+    Treatment = case_when(
+      str_starts(Primary_Treatment, "Primary_Cold") ~ "Cold",
+      str_starts(Primary_Treatment, "Primary_NoCo") ~ "NoCo",
+      str_starts(Primary_Treatment, "SHAM")         ~ "SHAM",
+      TRUE                                      ~ NA_character_
+    ))
+
+plong_em_split <- plong_em_split |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")),
+         SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
+```
+
+I am going to make the top part of the figure for all 3 groups and it be 3 facets
+
+```{r}
+p_longitudinal <- ggplot() +
   geom_jitter(
-    data = subset(Primary_raw, Treatment == "NoCo"),
+    data = Primary_raw,
     aes(x = DateType, y = Total_AUC, color = Treatment),
     width = 0.15, height = 0, alpha = 0.3, size = 1.5
   ) +
   geom_line(
-    data = subset(split_75, Treatment == "NoCo"),
-    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    data = em_df_split,
+    aes(x = DateType, y = emmean, color = Treatment, group = Treatment),
     linewidth = 1
   ) +
   geom_point(
-    data = subset(split_75, Treatment == "NoCo"),
+    data = em_df_split,
     aes(x = DateType, y = emmean, color = Treatment),
     size = 3
   ) +
   geom_errorbar(
-    data = subset(split_75, Treatment == "NoCo"),
-    aes(x = DateType, ymin = lower.CL, ymax = upper.CL, color = Treatment),
+    data = em_df_split,
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
     width = 0.1, linewidth = 0.7
   ) +
+  coord_cartesian(ylim = c(-275, 125)) +
   scale_color_manual(values = primary_colors) +
-  labs(x = "DateType", y = NULL) +
+   facet_wrap(~ Treatment, ncol = 1) +
+  labs(x = "DateType", y = "Hypo TD (Degree Hours)") +
   theme_bw() +
   theme(
     legend.position = "none",
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank()
   )
-print(p_top75)
+print(p_longitudinal)
 
-# 2. Bottom Plot (Faceted treatments with raw data points in the background)
-p_bottom75 <- ggplot() +
+ggsave(
+  filename = "primary_longitudianl_plot.png", 
+  plot = p_longitudinal, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
+```
+
+```{r}
+p_bottom2 <- ggplot() +
   geom_jitter(
     data = Primary_raw,
     aes(x = Treatment, y = Total_AUC, color = Treatment),
     width = 0.15, height = 0, alpha = 0.3, size = 1.5
   ) +
   geom_errorbar(
-    data = split_75,
-    aes(x = Treatment, ymin = lower.CL, ymax = upper.CL, color = Treatment),
+    data = em_df_split,
+    aes(x = Treatment, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
     width = 0.1, linewidth = 0.7
   ) +
   geom_point(
-    data = split_75,
+    data = em_df_split,
     aes(x = Treatment, y = emmean, fill = Treatment),
     shape = 22, color = "black", stroke = 0.5, size = 3
   ) +
+   geom_signif(data = prim_sig_bars,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = annotation, 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = 0.04,
+    textsize = 3,
+    vjust = -0.6) +
+  geom_signif(data = comparison_bars_primary,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = "", 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = -0.05,
+    textsize = 3,
+    vjust = -0.6) +
+    coord_cartesian(ylim = c(-275, 125)) +
   scale_color_manual(values = primary_colors) +
   scale_fill_manual(values = primary_colors) +
-  facet_wrap(~ DateType, ncol = 3) + 
+  facet_wrap(~ DateType, ncol = 2) + 
   labs(x = "Primary Treatment", y = NULL, color = "Primary Treatment") +
   theme_bw() +
   theme(
@@ -581,97 +499,16 @@ p_bottom75 <- ggplot() +
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank()
   )
-print(p_bottom75)
-
-combined_plot75 <- (p_top75 / p_divider / p_bottom75) + 
-  plot_layout(heights = c(1, 0.05, 1.9), guides = "collect", axis_titles = "collect") & 
-  labs(y = "NTD (Degree Hours)") 
-
-print(combined_plot75)
+print(p_bottom2)
 
 ggsave(
-  filename = "primary_NTDplot_75.png", 
-  plot = combined_plot75, 
+  filename = "primary_bottom_plot.png", 
+  plot = p_bottom2, 
   width = 8,  # Narrower width (inches)
   height = 10,  # Much taller height (inches)
   dpi = 300)
 ```
-50% CI
-```{r}
-p_top50 <- ggplot() +
-  geom_jitter(
-    data = subset(Primary_raw, Treatment == "NoCo"),
-    aes(x = DateType, y = Total_AUC, color = Treatment),
-    width = 0.15, height = 0, alpha = 0.3, size = 1.5
-  ) +
-  geom_line(
-    data = subset(split_50, Treatment == "NoCo"),
-    aes(x = DateType, y = emmean, color = Treatment, group = 1),
-    linewidth = 1
-  ) +
-  geom_point(
-    data = subset(split_50, Treatment == "NoCo"),
-    aes(x = DateType, y = emmean, color = Treatment),
-    size = 3
-  ) +
-  geom_errorbar(
-    data = subset(split_50, Treatment == "NoCo"),
-    aes(x = DateType, ymin = lower.CL, ymax = upper.CL, color = Treatment),
-    width = 0.1, linewidth = 0.7
-  ) +
-  scale_color_manual(values = primary_colors) +
-  labs(x = "DateType", y = NULL) +
-  theme_bw() +
-  theme(
-    legend.position = "none",
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
-  )
-print(p_top50)
 
-# 2. Bottom Plot (Faceted treatments with raw data points in the background)
-p_bottom50 <- ggplot() +
-  geom_jitter(
-    data = Primary_raw,
-    aes(x = Treatment, y = Total_AUC, color = Treatment),
-    width = 0.15, height = 0, alpha = 0.3, size = 1.5
-  ) +
-  geom_errorbar(
-    data = split_50,
-    aes(x = Treatment, ymin = lower.CL, ymax = upper.CL, color = Treatment),
-    width = 0.1, linewidth = 0.7
-  ) +
-  geom_point(
-    data = split_50,
-    aes(x = Treatment, y = emmean, fill = Treatment),
-    shape = 22, color = "black", stroke = 0.5, size = 3
-  ) +
-  scale_color_manual(values = primary_colors) +
-  scale_fill_manual(values = primary_colors) +
-  facet_wrap(~ DateType, ncol = 3) + 
-  labs(x = "Primary Treatment", y = NULL, color = "Primary Treatment") +
-  theme_bw() +
-  theme(
-    legend.position = "none",
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
-  )
-print(p_bottom50)
-
-combined_plot50 <- (p_top50 / p_divider / p_bottom50) + 
-  plot_layout(heights = c(1, 0.05, 1.9), guides = "collect", axis_titles = "collect") & 
-  labs(y = "NTD (Degree Hours)") 
-
-print(combined_plot50)
-
-ggsave(
-  filename = "primary_NTDplot_50.png", 
-  plot = combined_plot50, 
-  width = 8,  # Narrower width (inches)
-  height = 10,  # Much taller height (inches)
-  dpi = 300)
-```
-Okay this is really really small so we are going to stick with 95% CI. 75% is hard to justify, but 50% is what is normally in box plots so thats why we tried it. 
 
 
 ### Hypo NTD
@@ -682,7 +519,7 @@ primary_hypo <- glm(HypoAUC ~ Group + Weight + Primary_Combo, data = Primary_Res
 
 p_hypo_emmeans <- emmeans(primary_hypo, ~ Primary_Combo)
 
-contrast(p_hypo_emmeans, method = primary_subset, adjust = "bonferroni")
+contrast(p_hypo_emmeans, method = primary_subset, adjust = "fdr")
 ```
 
 ```{r}
@@ -697,26 +534,33 @@ hypomixed_emmeans <- emmeans(hypo_mixed, ~ Primary_Combo)
 levels(hypomixed_emmeans)
 
 # 2. Run your custom contrasts
-contrast(hypomixed_emmeans, method = primary_subset, adjust = "bonferroni")
+p_hypo_contrast <- as.data.frame(contrast(hypomixed_emmeans, method = primary_subset, adjust = "fdr"))
 ```
 
-#### Hypo Figure
+##### Hypo Figure
+
 ```{r}
 hypo_df_p <- as.data.frame(emmeans(hypo_mixed, ~ Primary_Combo))
 
 hypo_split <- hypo_df_p %>%
   mutate(
     # Extract Factor A using exact prefix matching
-    Treatment = case_when(
-      str_starts(Primary_Combo, "Primary_Cold") ~ "Primary_Cold",
-      str_starts(Primary_Combo, "Primary_NoCo") ~ "Primary_NoCo",
+        Treatment = case_when(
+      str_starts(Primary_Combo, "Primary_Cold") ~ "Cold",
+      str_starts(Primary_Combo, "Primary_NoCo") ~ "NoCo",
       str_starts(Primary_Combo, "SHAM")         ~ "SHAM",
       TRUE                                      ~ NA_character_
     ),
-    
     # Remove Factor A and the connecting underscore to leave Factor B
-    DateType = str_remove(Primary_Combo, paste0("^", Treatment, "_?"))
-  )
+    DateType = case_when(
+      str_starts(Primary_Combo, "Primary_Cold_") ~ str_remove(Primary_Combo, "Primary_Cold_"),
+      str_starts(Primary_Combo, "Primary_NoCo_") ~ str_remove(Primary_Combo, "Primary_NoCo_"),
+      str_starts(Primary_Combo, "SHAM_")         ~ str_remove(Primary_Combo, "SHAM_"),
+      TRUE                                       ~ NA_character_))
+
+hypo_split <- hypo_split |> 
+  mutate(SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
 
 # Interaction plot with connecting lines and capped error bars
 ggplot(hypo_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
@@ -736,6 +580,244 @@ ggplot(hypo_split, aes(x = DateType, y = emmean, color = Treatment, group = Trea
   theme_bw()
 ```
 
+```{r}
+
+p_hypo_sig_bars <- p_hypo_contrast
+p_hypo_sig_bars <- p_hypo_sig_bars |> 
+  mutate(DateType = case_when(
+    grepl("_P", contrast) ~ "Primary",
+    grepl("_1", contrast) ~ "Primary + 1",
+    grepl("_2", contrast) ~ "Primary + 2",
+    grepl("_3", contrast) ~ "Primary + 3",
+    grepl("_-1", contrast) ~ "Primary - 1",
+    grepl("_None", contrast) ~ "None",
+    TRUE ~ "other"))
+
+p_hypo_sig_bars <- p_hypo_sig_bars |> 
+  mutate(Left = case_when(
+    grepl("SvN_", contrast) ~ "NoCo",
+    grepl("NvC_", contrast) ~ "NoCo",
+    TRUE ~ "other"))
+
+p_hypo_sig_bars <- p_hypo_sig_bars |> 
+   mutate(Right = case_when(
+    grepl("SvN_", contrast) ~ "SHAM",
+    grepl("NvC_", contrast) ~ "Cold",
+    TRUE ~ "other"))
+
+p_hypo_sig_bars <- p_hypo_sig_bars |> 
+  mutate(p.value2 = sprintf("%.2e", p.value),
+         annotation = paste("P-Value =", p.value2))
+
+comparison_bars_prim_hypo <- p_hypo_sig_bars 
+
+p_hypo_sig_bars <- p_hypo_sig_bars |> 
+  filter(p.value < 0.05)
+
+p_hypo_sig_bars <- p_hypo_sig_bars |> 
+ mutate(y_position = case_when(
+    contrast == "NvC_P" ~ 22,
+    contrast == "NvC_2" ~ 18))
+```
+
+
+Making bars for my comparison to add in the primary +3 facet
+```{r}
+comparison_bars_prim_hypo <- comparison_bars_prim_hypo |> 
+  filter(DateType == "Primary + 3")
+
+comparison_bars_prim_hypo <- comparison_bars_prim_hypo |> 
+ mutate(y_position = case_when(
+    contrast == "SvN_3" ~ -200,
+    contrast == "NvC_3" ~ -150))
+
+p_hypo_sig_bars <- p_hypo_sig_bars |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")))
+comparison_bars_prim_hypo <- comparison_bars_prim_hypo |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")))
+Primary_raw <- Primary_raw |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")),
+          Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")))
+hypo_split <- hypo_split |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")))
+```
+
+
+```{r}
+p_hypo_top <- ggplot() +
+  geom_jitter(
+    data = subset(Primary_raw, Treatment == "NoCo"),
+    aes(x = DateType, y = HypoAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_line(
+    data = subset(hypo_split, Treatment == "NoCo"),
+    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = subset(hypo_split, Treatment == "NoCo"),
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = subset(hypo_split, Treatment == "NoCo"),
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  coord_cartesian(ylim = c(-275, 30)) +
+  scale_color_manual(values = primary_colors) +
+  labs(x = "DateType", y = NULL) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+print(p_hypo_top)
+
+# 2. Bottom Plot (Faceted treatments with raw data points in the background)
+p_hypo_bottom <- ggplot() +
+  geom_jitter(
+    data = Primary_raw,
+    aes(x = Treatment, y = HypoAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_errorbar(
+    data = hypo_split,
+    aes(x = Treatment, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  geom_point(
+    data = hypo_split,
+    aes(x = Treatment, y = emmean, fill = Treatment),
+    shape = 22, color = "black", stroke = 0.5, size = 3) +
+  geom_signif(data = p_hypo_sig_bars,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = annotation, 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = 0.02,
+    textsize = 3,
+    vjust = -0.2) +
+   geom_signif(data = comparison_bars_prim_hypo,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = "", 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = -0.02) +
+  coord_cartesian(ylim = c(-275, 30)) +
+  scale_color_manual(values = primary_colors) +
+  scale_fill_manual(values = primary_colors) +
+  facet_wrap(~ DateType, ncol = 3) + 
+  labs(x = "Primary Treatment", y = NULL, color = "Primary Treatment") +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+print(p_hypo_bottom)
+
+primary_hypo_plot <- (p_hypo_top / p_divider / p_hypo_bottom) + 
+  plot_layout(heights = c(1, 0.05, 1.9), guides = "collect", axis_titles = "collect") & 
+  labs(y = "Hypo TD (Degree Hours)") 
+
+print(primary_hypo_plot)
+
+ggsave(
+  filename = "primary_HypoNTDplot.png", 
+  plot = primary_hypo_plot, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
+```
+
+### Hypo Longitudinal Primary
+
+```{r}
+p_hypo_long_mixed <- lmerTest::lmer(HypoAUC ~ DateType + Weight + Primary_Treatment + (1 | Group / Bat_ID),  data = Primary_Results)
+
+# Check the summary
+summary(p_hypo_long_mixed)
+
+p_hypo_long_emmeans <- emmeans(p_hypo_long_mixed, ~ DateType | Primary_Treatment)
+
+summary(p_hypo_long_emmeans)
+
+p_hypo_long_em_df <- as.data.frame(p_hypo_long_emmeans)
+
+p_hypo_long_pval <- as.data.frame(pairs(p_hypo_long_emmeans, adjust = "fdr"))
+```
+
+##### Longitudinal figure
+
+```{r}
+plong_hypo_em_split <- p_hypo_long_em_df %>%
+  mutate(
+    # Extract Factor A using exact prefix matching
+    Treatment = case_when(
+      str_starts(Primary_Treatment, "Primary_Cold") ~ "Cold",
+      str_starts(Primary_Treatment, "Primary_NoCo") ~ "NoCo",
+      str_starts(Primary_Treatment, "SHAM")         ~ "SHAM",
+      TRUE                                      ~ NA_character_
+    ))
+
+plong_hypo_em_split <- plong_hypo_em_split |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")),
+         SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
+```
+
+
+I am going to make the top part of the figure for all 3 groups and it be 3 facets
+
+```{r}
+p_hypo_long <- ggplot() +
+  geom_jitter(
+    data = Primary_raw,
+    aes(x = DateType, y = HypoAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_line(
+    data = hypo_split,
+    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = hypo_split,
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = hypo_split,
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  coord_cartesian(ylim = c(-275, 30)) +
+  scale_color_manual(values = primary_colors) +
+  labs(x = "DateType", y = "Hypo TD (Degree Hours") +
+  theme_bw() +
+     facet_wrap(~ Treatment, ncol = 1) +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+print(p_hypo_long)
+
+ggsave(
+  filename = "primary_hypo_longitudinal.png", 
+  plot = p_hypo_long, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
+```
+
+
 ### Hyper NTD
 
 ```{r}
@@ -743,7 +825,7 @@ primary_hyper <- glm(HyperAUC ~ Group + Weight + Primary_Combo, data = Primary_R
 
 p_hyper_emmeans <- emmeans(primary_hyper, ~ Primary_Combo)
 
-contrast(p_hyper_emmeans, method = primary_subset, adjust = "bonferroni")
+contrast(p_hyper_emmeans, method = primary_subset, adjust = "fdr")
 ```
 Okay, this is very interesting. I am going to run this as a mixed effects model just so I am including Bat_ID still
 
@@ -761,8 +843,11 @@ levels(hypermixed_emmeans)
 
 
 # 2. Run your custom contrasts
-contrast(hypermixed_emmeans, method = primary_subset, adjust = "bonferroni")
+
+contrast(hypermixed_emmeans, method = primary_subset, adjust = "fdr")
+p_contr_hyper <- as.data.frame(contrast(hypermixed_emmeans, method = primary_subset, adjust = "fdr"))
 ```
+
 #### Hyper Figure 
 
 ```{r}
@@ -772,15 +857,21 @@ hyper_split <- hyper_df_p %>%
   mutate(
     # Extract Factor A using exact prefix matching
     Treatment = case_when(
-      str_starts(Primary_Combo, "Primary_Cold") ~ "Primary_Cold",
-      str_starts(Primary_Combo, "Primary_NoCo") ~ "Primary_NoCo",
+      str_starts(Primary_Combo, "Primary_Cold") ~ "Cold",
+      str_starts(Primary_Combo, "Primary_NoCo") ~ "NoCo",
       str_starts(Primary_Combo, "SHAM")         ~ "SHAM",
       TRUE                                      ~ NA_character_
     ),
-    
     # Remove Factor A and the connecting underscore to leave Factor B
-    DateType = str_remove(Primary_Combo, paste0("^", Treatment, "_?"))
-  )
+    DateType = case_when(
+      str_starts(Primary_Combo, "Primary_Cold_") ~ str_remove(Primary_Combo, "Primary_Cold_"),
+      str_starts(Primary_Combo, "Primary_NoCo_") ~ str_remove(Primary_Combo, "Primary_NoCo_"),
+      str_starts(Primary_Combo, "SHAM_")         ~ str_remove(Primary_Combo, "SHAM_"),
+      TRUE                                       ~ NA_character_))
+
+hyper_split <- hyper_split |> 
+  mutate(SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
 
 # Interaction plot with connecting lines and capped error bars
 ggplot(hyper_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
@@ -798,6 +889,245 @@ ggplot(hyper_split, aes(x = DateType, y = emmean, color = Treatment, group = Tre
     title = "Interaction Effect on Hyper NTD"
   ) +
   theme_bw()
+```
+
+```{r}
+prim_hyper_sig_bars <- p_contr_hyper
+prim_hyper_sig_bars <- prim_hyper_sig_bars |> 
+  mutate(DateType = case_when(
+    grepl("_P", contrast) ~ "Primary",
+    grepl("_1", contrast) ~ "Primary + 1",
+    grepl("_2", contrast) ~ "Primary + 2",
+    grepl("_3", contrast) ~ "Primary + 3",
+    grepl("_-1", contrast) ~ "Primary - 1",
+    grepl("_None", contrast) ~ "None",
+    TRUE ~ "other"))
+
+prim_hyper_sig_bars <- prim_hyper_sig_bars |> 
+  mutate(Left = case_when(
+    grepl("SvN_", contrast) ~ "NoCo",
+    grepl("NvC_", contrast) ~ "NoCo",
+    TRUE ~ "other"))
+
+prim_hyper_sig_bars <- prim_hyper_sig_bars |> 
+   mutate(Right = case_when(
+    grepl("SvN_", contrast) ~ "SHAM",
+    grepl("NvC_", contrast) ~ "Cold",
+    TRUE ~ "other"))
+
+prim_hyper_sig_bars <- prim_hyper_sig_bars |> 
+  mutate(p.value2 = sprintf("%.2e", p.value),
+         annotation = paste("P-Value =", p.value2))
+
+comparison_bars_prim_hyper <- prim_hyper_sig_bars 
+
+prim_hyper_sig_bars <- prim_hyper_sig_bars |> 
+  filter(p.value < 0.05)
+
+prim_hyper_sig_bars <- prim_hyper_sig_bars |> 
+ mutate(y_position = case_when(
+    contrast == "SvN_P" ~ 95,
+    contrast == "NvC_P" ~ 83,
+    contrast == "NvC_1" ~ 65,
+    contrast == "NvC_2" ~ 65,
+    contrast == "NvC_3" ~ 65))
+```
+
+
+Making bars for my comparison to add in the primary +3 facet
+```{r}
+comparison_bars_prim_hyper <- comparison_bars_prim_hyper |> 
+  filter(DateType == "Primary + 3")
+
+comparison_bars_prim_hyper <- comparison_bars_prim_hyper |> 
+ mutate(y_position = case_when(
+    contrast == "SvN_3" ~ -12,
+    contrast == "NvC_3" ~ -6))
+
+prim_hyper_sig_bars <- prim_hyper_sig_bars |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")))
+comparison_bars_prim_hyper <- comparison_bars_prim_hyper |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")))
+Primary_raw <- Primary_raw |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")),
+          Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")))
+hyper_split <- hyper_split |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")))
+```
+
+
+```{r}
+p_hyper_top <- ggplot() +
+  geom_jitter(
+    data = subset(Primary_raw, Treatment == "NoCo"),
+    aes(x = DateType, y = HyperAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_line(
+    data = subset(hyper_split, Treatment == "NoCo"),
+    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = subset(hyper_split, Treatment == "NoCo"),
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = subset(hyper_split, Treatment == "NoCo"),
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+   coord_cartesian(ylim = c(-10, 95)) +
+  scale_color_manual(values = primary_colors) +
+  labs(x = "DateType", y = NULL) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+print(p_hyper_top)
+
+# 2. Bottom Plot (Faceted treatments with raw data points in the background)
+p_hyper_bottom <- ggplot() +
+  geom_jitter(
+    data = Primary_raw,
+    aes(x = Treatment, y = HyperAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_errorbar(
+    data = hyper_split,
+    aes(x = Treatment, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  geom_point(
+    data = hyper_split,
+    aes(x = Treatment, y = emmean, fill = Treatment),
+    shape = 22, color = "black", stroke = 0.5, size = 3) +
+  geom_signif(data = prim_hyper_sig_bars,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = annotation, 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = 0.02,
+    textsize = 3,
+    vjust = -0.2) +
+   geom_signif(data = comparison_bars_prim_hyper,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = "", 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = -0.02) +
+  coord_cartesian(ylim = c(-10, 95)) +
+  scale_color_manual(values = primary_colors) +
+  scale_fill_manual(values = primary_colors) +
+  facet_wrap(~ DateType, ncol = 3) + 
+  labs(x = "Primary Treatment", y = NULL, color = "Primary Treatment") +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+print(p_hyper_bottom)
+
+primary_hyper_plot <- (p_hyper_top / p_divider / p_hyper_bottom) + 
+  plot_layout(heights = c(1, 0.05, 1.9), guides = "collect", axis_titles = "collect") & 
+  labs(y = "Hyper TD (Degree Hours)") 
+
+print(primary_hyper_plot)
+
+ggsave(
+  filename = "primary_HyperNTDplot.png", 
+  plot = primary_hyper_plot, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
+```
+
+### Hyper Longitudinal Primary
+
+```{r}
+p_hyper_long_mixed <- lmerTest::lmer(HyperAUC ~ DateType + Weight + Primary_Treatment + (1 | Group / Bat_ID),  data = Primary_Results)
+
+# Check the summary
+summary(p_hyper_long_mixed)
+
+p_hyper_long_emmeans <- emmeans(p_hyper_long_mixed, ~ DateType | Primary_Treatment)
+
+summary(p_hyper_long_emmeans)
+
+p_hyper_long_em_df <- as.data.frame(p_hyper_long_emmeans)
+
+p_hyper_long_pval <- as.data.frame(pairs(p_hyper_long_emmeans, adjust = "fdr"))
+```
+
+##### Longitudinal figure
+
+```{r}
+plong_hyper_em_split <- p_hyper_long_em_df %>%
+  mutate(
+    # Extract Factor A using exact prefix matching
+    Treatment = case_when(
+      str_starts(Primary_Treatment, "Primary_Cold") ~ "Cold",
+      str_starts(Primary_Treatment, "Primary_NoCo") ~ "NoCo",
+      str_starts(Primary_Treatment, "SHAM")         ~ "SHAM",
+      TRUE                                      ~ NA_character_
+    ))
+
+plong_hyper_em_split <- plong_hyper_em_split |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "Cold", "SHAM")),
+         SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
+```
+
+
+I am going to make the top part of the figure for all 3 groups and it be 3 facets
+
+```{r}
+p_hyper_long <- ggplot() +
+  geom_jitter(
+    data = Primary_raw,
+    aes(x = DateType, y = HyperAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_line(
+    data = hyper_split,
+    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = hyper_split,
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = hyper_split,
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  scale_color_manual(values = primary_colors) +
+  labs(x = "DateType", y = "Hyper TD (Degree Hours") +
+  theme_bw() +
+  coord_cartesian(ylim = c(-10, 95)) +
+     facet_wrap(~ Treatment, ncol = 1) +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+print(p_hyper_long)
+
+ggsave(
+  filename = "primary_hyper_longitudinal.png", 
+  plot = p_hyper_long, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
 ```
 
 ## Secondary Models
@@ -827,7 +1157,6 @@ secondary_bats <- Secondary_Results %>%
   pull(Bat_ID) %>%
   unique()
 
-# 2. Keep all rows for those bats across all days
 Secondary_Results_filtered <- Secondary_Results %>%
   filter(Bat_ID %in% secondary_bats)
 
@@ -837,7 +1166,7 @@ levels(Secondary_Results$Group_Combo)
 
 I am going to run the same models for seconary as I did for primary
 ```{r}
-secondary_glm <- glm(Total_AUC ~ Bat_ID + Group + Weight + Group_Combo, data = Secondary_Results)
+secondary_glm <- glm(Total_AUC ~ Bat_ID + Group + Weight + Group_Combo, data = Secondary_Results_filtered)
 
 secondary_emmeans <- emmeans(secondary_glm, ~ Group_Combo)
 
@@ -875,7 +1204,7 @@ secondary_subset <- list(
 
 # 3. Run the contrast. 
 # R will automatically apply these exact vectors to Males, and then to Females.
-contrast(secondary_emmeans, method = secondary_subset, adjust = "bonferroni")
+contrast(secondary_emmeans, method = secondary_subset, adjust = "fdr")
 ```
 Okay, I am getting NAs and I think it is because of Bat_ID
 I am going to rerun the model without Bat_ID
@@ -884,7 +1213,7 @@ secondary_glm2 <- glm(Total_AUC ~ Group + Weight + Group_Combo, data = Secondary
 
 secondary_emmeans2 <- emmeans(secondary_glm2, ~ Group_Combo)
 
-contrast(secondary_emmeans2, method = secondary_subset, adjust = "bonferroni")
+contrast(secondary_emmeans2, method = secondary_subset, adjust = "fdr")
 ```
 
 Running mixed effects model.. 
@@ -898,7 +1227,7 @@ summary(secondary_mixed)
 secondarymixed_emmeans <- emmeans(secondary_mixed, ~ Group_Combo)
 
 # 2. Run your custom contrasts
-secondary_contrasts <- as.data.frame(contrast(secondarymixed_emmeans, method = secondary_subset, adjust = "bonferroni"))
+secondary_contrasts <- as.data.frame(contrast(secondarymixed_emmeans, method = secondary_subset, adjust = "fdr"))
 ```
 So there is no statistically difference in AUC between SHAM and NoCo, CP+S and CS, or NoCo and CP on any day. CP+S had a significantly lower AUC than CP on D21 and CS had a significantly lower AUC than Noco on D21. 
 
@@ -924,6 +1253,10 @@ sec_df_split <- Sec_df %>%
       str_remove(fixed(Treatment)) %>% 
       # Remove any leading underscore that was left behind
       str_remove("^_"))
+
+sec_df_split <- sec_df_split |> 
+  mutate(SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
 
 # Interaction plot with connecting lines and capped error bars
 ggplot(sec_df_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
@@ -1006,6 +1339,15 @@ Secondary_sig_bars <- Secondary_sig_bars |>
   mutate(y_position = case_when(
     contrast == "CPvCPS_S" ~ 22,
     contrast == "NvCS_S" ~ 62  ))
+
+Secondary_Raw <- Secondary_Raw |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")))
+
+Secondary_sig_bars <- Secondary_sig_bars |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")))
+
+comparison_bars_secondary <- comparison_bars_secondary |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")))
 ```
 
 Making bars for my comparison to add in the primary +3 facet
@@ -1015,11 +1357,11 @@ comparison_bars_secondary <- comparison_bars_secondary |>
 
 comparison_bars_secondary <- comparison_bars_secondary |> 
  mutate(y_position = case_when(
-    contrast == "SvN_3" ~ -330,
+    contrast == "SvN_3" ~ -300,
     contrast == "NvCP_3" ~ -180,
-     contrast == "CPSvCS_3" ~ -250,
+     contrast == "CPSvCS_3" ~ -240,
     contrast == "CPvCPS_3" ~ -210,
-     contrast == "NvCS_3" ~ -290))
+     contrast == "NvCS_3" ~ -270))
 
 ```
 
@@ -1043,9 +1385,10 @@ s_top <- ggplot() +
   ) +
   geom_errorbar(
     data = subset(sec_df_split, Treatment == "NoCo"),
-    aes(x = DateType, ymin = lower.CL, ymax = upper.CL, color = Treatment),
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
     width = 0.1, linewidth = 0.7
   ) +
+  coord_cartesian(ylim = c(-300, 80)) +
   scale_color_manual(values = treatmentcolors) +
   labs(x = "DateType", y = NULL) +
   theme_bw() +
@@ -1065,7 +1408,7 @@ s_bottom <- ggplot() +
   ) +
   geom_errorbar(
     data = sec_df_split,
-    aes(x = Treatment, ymin = lower.CL, ymax = upper.CL, color = Treatment),
+    aes(x = Treatment, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
     width = 0.1, linewidth = 0.7
   ) +
   geom_point(
@@ -1090,10 +1433,10 @@ s_bottom <- ggplot() +
     tip_length = -0.05,
     textsize = 3,
     vjust = -0.6) +
-  coord_cartesian(ylim = c(-350, 80)) +
+  coord_cartesian(ylim = c(-300, 80)) +
   scale_color_manual(values = treatmentcolors) +
   scale_fill_manual(values = treatmentcolors) +
-  facet_wrap(~ DateType, ncol = 3) + 
+  facet_wrap(~ DateType, ncol = 2) + 
   labs(x = "Secondary Treatment", y = NULL, color = "Secondary Treatment") +
   theme_bw() +
   theme(
@@ -1102,15 +1445,86 @@ s_bottom <- ggplot() +
     panel.grid.minor = element_blank())
 print(s_bottom)
 
-secondary_plot <- (s_top / p_divider / s_bottom) + 
-  plot_layout(heights = c(1, 0.05, 1.9), guides = "collect", axis_titles = "collect") & 
-  labs(y = "NTD (Degree Hours)") 
+ggsave(
+  filename = "secondary_NTD_bottom_plot.png", 
+  plot = s_bottom, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
+```
 
-print(secondary_plot)
+### Longitudinal Secondary
+
+```{r}
+s_long_mixed <- lmerTest::lmer(Total_AUC ~ DateType + Weight + Treatment + (1 | Group / Bat_ID),  data = Secondary_Results_filtered)
+
+# Check the summary
+summary(s_long_mixed)
+
+s_long_emmeans <- emmeans(s_long_mixed, ~ DateType | Treatment)
+
+summary(s_long_emmeans)
+
+s_long_em_df <- as.data.frame(s_long_emmeans)
+
+s_long_pval <- as.data.frame(pairs(s_long_emmeans, adjust = "fdr"))
+```
+
+##### Longitudinal figure
+
+```{r}
+s_long_em_df <- s_long_em_df |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "CP", "CP+S", "CS", "SHAM")),
+         SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
+
+s_long_em_df <- s_long_em_df |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "CP", "CP+S", "CS", "SHAM")),
+         SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
+```
+
+
+I am going to make the top part of the figure for all 3 groups and it be 3 facets
+
+```{r}
+s_long <- ggplot() +
+  geom_jitter(
+    data = Secondary_Raw,
+    aes(x = DateType, y = Total_AUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_line(
+    data = s_long_em_df,
+    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = s_long_em_df,
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = s_long_em_df,
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  coord_cartesian(ylim = c(-300, 80)) +
+  scale_color_manual(values = treatmentcolors) +
+  labs(x = "DateType", y = "NTD (Degree Hours") +
+  theme_bw() +
+     facet_wrap(~ Treatment, ncol = 1) +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+print(s_long)
 
 ggsave(
-  filename = "secondary_NTDplot.png", 
-  plot = secondary_plot, 
+  filename = "secondary_longitudinal.png", 
+  plot = s_long, 
   width = 8,  # Narrower width (inches)
   height = 10,  # Much taller height (inches)
   dpi = 300)
@@ -1124,7 +1538,7 @@ secondary_hypo <- glm(HypoAUC ~ Group + Weight + Group_Combo, data = Secondary_R
 
 s_hypo_emmeans <- emmeans(secondary_hypo, ~ Group_Combo)
 
-contrast(s_hypo_emmeans, method = secondary_subset, adjust = "bonferroni")
+contrast(s_hypo_emmeans, method = secondary_subset, adjust = "fdr")
 ```
 **I tried running this on hyper and i was getting an error. I think the error was because variance for hyper was almost 0, so they model was not able to factor in group and bat_id as a random effect.**
 ```{r}
@@ -1137,7 +1551,7 @@ summary(s_hypo_mixed)
 s_hypo_emmeans <- emmeans(s_hypo_mixed, ~ Group_Combo)
 
 # 2. Run your custom contrasts
-contrast(s_hypo_emmeans, method = secondary_subset, adjust = "bonferroni")
+contrast(s_hypo_emmeans, method = secondary_subset, adjust = "fdr")
 ```
 
 ```{r}
@@ -1150,7 +1564,7 @@ summary(s_hypo_mixed2)
 s_hypo_emmeans2 <- emmeans(s_hypo_mixed2, ~ Group_Combo)
 
 # 2. Run your custom contrasts
-contrast(s_hypo_emmeans2, method = secondary_subset, adjust = "bonferroni")
+contrast_sec_hypo <- as.data.frame(contrast(s_hypo_emmeans2, method = secondary_subset, adjust = "fdr"))
 ```
 
 
@@ -1177,6 +1591,10 @@ s_hypo_split <- S_hypo_df %>%
       # Remove any leading underscore that was left behind
       str_remove("^_"))
 
+s_hypo_split <- s_hypo_split |> 
+  mutate(SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
+
 # Interaction plot with connecting lines and capped error bars
 ggplot(s_hypo_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
   geom_line(linewidth = 1) +
@@ -1195,13 +1613,252 @@ ggplot(s_hypo_split, aes(x = DateType, y = emmean, color = Treatment, group = Tr
   theme_bw()
 ```
 
+```{r}
+s_hypo_split <- s_hypo_split |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")))
+
+s_hypo_split <- s_hypo_split |> 
+  mutate(Treatment = factor(Treatment, levels = c("NoCo", "CP", "CP+S", "CS", "SHAM")))
+```
+
+I want to add significant bars
+```{r}
+Sec_hypo_sig_bars <- contrast_sec_hypo
+Sec_hypo_sig_bars <- Sec_hypo_sig_bars |> 
+  mutate(DateType = case_when(
+    grepl("_S", contrast) ~ "Secondary",
+    grepl("_1", contrast) ~ "Secondary + 1",
+    grepl("_2", contrast) ~ "Secondary + 2",
+    grepl("_3", contrast) ~ "Secondary + 3",
+    grepl("_-1", contrast) ~ "Secondary - 1",
+    grepl("_None", contrast) ~ "None",
+    TRUE ~ "other"))
+
+Sec_hypo_sig_bars <- Sec_hypo_sig_bars |> 
+  mutate(Left = case_when(
+    grepl("SvN_", contrast) ~ "NoCo",
+    grepl("NvCP_", contrast) ~ "NoCo",
+    grepl("CPSvCS_", contrast) ~ "CP+S",
+    grepl("CPvCPS_", contrast) ~ "CP",
+    grepl("NvCS_", contrast) ~ "NoCo",
+    TRUE ~ "other"))
+
+Sec_hypo_sig_bars <- Sec_hypo_sig_bars |> 
+  mutate(Right = case_when(
+    grepl("SvN_", contrast) ~ "SHAM",
+    grepl("NvCP_", contrast) ~ "CP",
+    grepl("CPSvCS_", contrast) ~ "CS",
+    grepl("CPvCPS_", contrast) ~ "CP+S",
+    grepl("NvCS_", contrast) ~ "CS",
+    TRUE ~ "other"))
+
+Sec_hypo_sig_bars <- Sec_hypo_sig_bars |> 
+  mutate(p.value2 = sprintf("%.2e", p.value),
+         annotation = paste("P-Value =", p.value2))
+
+comparison_bars_secondary_hypo <- Sec_hypo_sig_bars 
+
+Sec_hypo_sig_bars <- Sec_hypo_sig_bars |> 
+  filter(p.value < 0.05)
+
+Sec_hypo_sig_bars <- Sec_hypo_sig_bars |> 
+  mutate(y_position = case_when(
+    contrast == "CPvCPS_S" ~ 22,
+    contrast == "NvCS_S" ~ 62  ))
+```
+
+Making bars for my comparison to add in the primary +3 facet
+```{r}
+comparison_bars_secondary_hypo <- comparison_bars_secondary_hypo |> 
+  filter(DateType == "Secondary + 3")
+
+comparison_bars_secondary_hypo <- comparison_bars_secondary_hypo |> 
+ mutate(y_position = case_when(
+    contrast == "SvN_3" ~ -330,
+    contrast == "NvCP_3" ~ -180,
+     contrast == "CPSvCS_3" ~ -250,
+    contrast == "CPvCPS_3" ~ -210,
+     contrast == "NvCS_3" ~ -290))
+
+comparison_bars_secondary_hypo <- comparison_bars_secondary_hypo |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")))
+
+Sec_hypo_sig_bars <- Sec_hypo_sig_bars |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")))
+```
+
+
+```{r}
+s_hypo_top <- ggplot() +
+  geom_jitter(
+    data = subset(Secondary_Raw, Treatment == "NoCo"),
+    aes(x = DateType, y = HypoAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_line(
+    data = subset(s_hypo_split, Treatment == "NoCo"),
+    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = subset(s_hypo_split, Treatment == "NoCo"),
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = subset(s_hypo_split, Treatment == "NoCo"),
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  coord_cartesian(ylim = c(-335, 80)) +
+  scale_color_manual(values = treatmentcolors) +
+  labs(x = "DateType", y = NULL) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+print(s_hypo_top)
+
+# 2. Bottom Plot (Faceted treatments with raw data points in the background)
+s_hypo_bottom <- ggplot() +
+  geom_jitter(
+    data = Secondary_Raw,
+    aes(x = Treatment, y = HypoAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_errorbar(
+    data = s_hypo_split,
+    aes(x = Treatment, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  geom_point(
+    data = s_hypo_split,
+    aes(x = Treatment, y = emmean, fill = Treatment),
+    shape = 22, color = "black", stroke = 0.5, size = 3) +
+  geom_signif(data = Sec_hypo_sig_bars,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = annotation, 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = 0.02,
+    textsize = 3,
+    vjust = -0.5) +
+   geom_signif(data = comparison_bars_secondary_hypo,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = "", 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = -0.05,
+    textsize = 3,
+    vjust = -0.6) +
+  coord_cartesian(ylim = c(-335, 80)) +
+  scale_color_manual(values = treatmentcolors) +
+  scale_fill_manual(values = treatmentcolors) +
+  facet_wrap(~ DateType, ncol = 3) + 
+  labs(x = "Secondary Treatment", y = NULL, color = "Secondary Treatment") +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+print(s_hypo_bottom)
+
+secondary_hypo_plot <- (s_hypo_top / p_divider / s_hypo_bottom) + 
+  plot_layout(heights = c(1, 0.05, 1.9), guides = "collect", axis_titles = "collect") & 
+  labs(y = "Hypo TD (Degree Hours)") 
+
+print(secondary_hypo_plot)
+
+ggsave(
+  filename = "secondary_HypoNTDplot.png", 
+  plot = secondary_hypo_plot, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
+```
+
+### Longitudinal Hypo Secondary
+
+```{r}
+s_long_hypo_mixed <- lmerTest::lmer(HypoAUC ~ DateType + Weight + Treatment + (1 | Group / Bat_ID),  data = Secondary_Results_filtered)
+
+# Check the summary
+summary(s_long_hypo_mixed)
+
+s_long_hypo_emmeans <- emmeans(s_long_hypo_mixed, ~ DateType | Treatment)
+
+summary(s_long_hypo_emmeans)
+
+s_long_hypo_em_df <- as.data.frame(s_long_hypo_emmeans)
+
+s_long__hypo_pval <- as.data.frame(pairs(s_long_hypo_emmeans, adjust = "fdr"))
+```
+
+##### Longitudinal Hypo figure
+
+```{r}
+s_long_hypo_emmeans <- s_long_hypo_em_df |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "CP", "CP+S", "CS", "SHAM")),
+         SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
+```
+
+
+I am going to make the top part of the figure for all 3 groups and it be 3 facets
+
+```{r}
+s_long_hypo <- ggplot() +
+  geom_jitter(
+    data = Secondary_Raw,
+    aes(x = DateType, y = HypoAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_line(
+    data = s_long_hypo_emmeans,
+    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = s_long_hypo_emmeans,
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = s_long_hypo_emmeans,
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  coord_cartesian(ylim = c(-300, 80)) +
+  scale_color_manual(values = treatmentcolors) +
+  labs(x = "DateType", y = "Hypo TD (Degree Hours") +
+  theme_bw() +
+     facet_wrap(~ Treatment, ncol = 1) +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+print(s_long)
+
+ggsave(
+  filename = "secondary_longitudinal_hypo.png", 
+  plot = s_long_hypo, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
+```
+
 ### Hyper Models
 ```{r}
 secondary_hyper <- glm(HyperAUC ~ Group + Weight + Group_Combo, data = Secondary_Results_filtered)
 
 s_hyper_emmeans <- emmeans(secondary_hyper, ~ Group_Combo)
 
-contrast(s_hyper_emmeans, method = secondary_subset, adjust = "bonferroni")
+contrast(s_hyper_emmeans, method = secondary_subset, adjust = "fdr")
 ```
 
 ```{r}
@@ -1214,7 +1871,7 @@ summary(s_hyper_mixed)
 s_hypermixed_emmeans <- emmeans(s_hyper_mixed, ~ Group_Combo)
 
 # 2. Run your custom contrasts
-contrast(s_hypermixed_emmeans, method = secondary_subset, adjust = "bonferroni")
+contrast(s_hypermixed_emmeans, method = secondary_subset, adjust = "fdr")
 ```
 
 ```{r}
@@ -1227,7 +1884,7 @@ summary(s_hyper_mixed2)
 s_hypermixed_emmeans2 <- emmeans(s_hyper_mixed2, ~ Group_Combo)
 
 # 2. Run your custom contrasts
-contrast(s_hypermixed_emmeans2, method = secondary_subset, adjust = "bonferroni")
+s_hyper_constrast <- as.data.frame(contrast(s_hypermixed_emmeans2, method = secondary_subset, adjust = "fdr"))
 ```
 
 #### Hyper Figure
@@ -1253,6 +1910,10 @@ s_hyper_split <- S_hyper_df %>%
       # Remove any leading underscore that was left behind
       str_remove("^_"))
 
+s_hyper_split <- s_hyper_split |> 
+  mutate(SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
+
 # Interaction plot with connecting lines and capped error bars
 ggplot(s_hyper_split, aes(x = DateType, y = emmean, color = Treatment, group = Treatment)) +
   geom_line(linewidth = 1) +
@@ -1269,6 +1930,223 @@ ggplot(s_hyper_split, aes(x = DateType, y = emmean, color = Treatment, group = T
     title = "Interaction Effect on Hyper NTD"
   ) +
   theme_bw()
+```
+
+```{r}
+Sec_hyper_sig_bars <- s_hyper_constrast
+Sec_hyper_sig_bars <- Sec_hyper_sig_bars |> 
+  mutate(DateType = case_when(
+    grepl("_S", contrast) ~ "Secondary",
+    grepl("_1", contrast) ~ "Secondary + 1",
+    grepl("_2", contrast) ~ "Secondary + 2",
+    grepl("_3", contrast) ~ "Secondary + 3",
+    grepl("_-1", contrast) ~ "Secondary - 1",
+    grepl("_None", contrast) ~ "None",
+    TRUE ~ "other"))
+
+Sec_hyper_sig_bars <- Sec_hyper_sig_bars |> 
+  mutate(Left = case_when(
+    grepl("SvN_", contrast) ~ "NoCo",
+    grepl("NvCP_", contrast) ~ "NoCo",
+    grepl("CPSvCS_", contrast) ~ "CP+S",
+    grepl("CPvCPS_", contrast) ~ "CP",
+    grepl("NvCS_", contrast) ~ "NoCo",
+    TRUE ~ "other"))
+
+Sec_hyper_sig_bars <- Sec_hyper_sig_bars |> 
+  mutate(Right = case_when(
+    grepl("SvN_", contrast) ~ "SHAM",
+    grepl("NvCP_", contrast) ~ "CP",
+    grepl("CPSvCS_", contrast) ~ "CS",
+    grepl("CPvCPS_", contrast) ~ "CP+S",
+    grepl("NvCS_", contrast) ~ "CS",
+    TRUE ~ "other"))
+
+Sec_hyper_sig_bars <- Sec_hyper_sig_bars |> 
+  mutate(p.value2 = sprintf("%.2e", p.value),
+         annotation = paste("P-Value =", p.value2))
+
+comparison_bars_secondary_hyper <- Sec_hyper_sig_bars 
+
+#no significance so no bars will be in the figure
+```
+
+Making bars for my comparison to add in the primary +3 facet
+```{r}
+comparison_bars_secondary_hyper <- comparison_bars_secondary_hyper |> 
+  filter(DateType == "Secondary + 3")
+
+comparison_bars_secondary_hyper <- comparison_bars_secondary_hyper |> 
+ mutate(y_position = case_when(
+    contrast == "SvN_3" ~ -26,
+    contrast == "NvCP_3" ~ -4,
+     contrast == "CPSvCS_3" ~ -8,
+    contrast == "CPvCPS_3" ~ -14,
+     contrast == "NvCS_3" ~ -20))
+
+s_hyper_split <- s_hyper_split |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")))
+
+comparison_bars_secondary_hyper <- comparison_bars_secondary_hyper |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")))
+
+Sec_hyper_sig_bars <- Sec_hyper_sig_bars |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")))
+```
+
+```{r}
+s_hyper_top <- ggplot() +
+  geom_jitter(
+    data = subset(Secondary_Raw, Treatment == "NoCo"),
+    aes(x = DateType, y = HyperAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_line(
+    data = subset(s_hyper_split, Treatment == "NoCo"),
+    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = subset(s_hyper_split, Treatment == "NoCo"),
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = subset(s_hyper_split, Treatment == "NoCo"),
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  coord_cartesian(ylim = c(-28, 44)) +
+  scale_color_manual(values = treatmentcolors) +
+  labs(x = "DateType", y = NULL) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+print(s_hyper_top)
+
+# 2. Bottom Plot (Faceted treatments with raw data points in the background)
+s_hyper_bottom <- ggplot() +
+  geom_jitter(
+    data = Secondary_Raw,
+    aes(x = Treatment, y = HyperAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_errorbar(
+    data = s_hyper_split,
+    aes(x = Treatment, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  geom_point(
+    data = s_hyper_split,
+    aes(x = Treatment, y = emmean, fill = Treatment),
+    shape = 22, color = "black", stroke = 0.5, size = 3) +
+    geom_signif(data = comparison_bars_secondary_hyper,
+    aes(xmin = Left, 
+      xmax = Right, 
+      annotations = "", 
+      y_position = y_position),
+    manual = TRUE,
+    tip_length = -0.03,
+    textsize = 3,
+    vjust = -0.6) +
+  coord_cartesian(ylim = c(-28, 44)) +
+  scale_color_manual(values = treatmentcolors) +
+  scale_fill_manual(values = treatmentcolors) +
+  facet_wrap(~ DateType, ncol = 3) + 
+  labs(x = "Secondary Treatment", y = NULL, color = "Secondary Treatment") +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+print(s_hyper_bottom)
+
+secondary_hyper_plot <- (s_hyper_top / p_divider / s_hyper_bottom) + 
+  plot_layout(heights = c(1, 0.05, 1.9), guides = "collect", axis_titles = "collect") & 
+  labs(y = "Hyper TD (Degree Hours)") 
+
+print(secondary_hyper_plot)
+
+ggsave(
+  filename = "secondary_HyperNTDplot.png", 
+  plot = secondary_hyper_plot, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
+```
+
+### Longitudinal Hyper Secondary
+
+```{r}
+s_long_hyper_mixed <- lmerTest::lmer(HyperAUC ~ DateType + Weight + Treatment + (1 | Group / Bat_ID),  data = Secondary_Results_filtered)
+
+# Check the summary
+summary(s_long_hyper_mixed)
+
+s_long_hyper_emmeans <- emmeans(s_long_hyper_mixed, ~ DateType | Treatment)
+
+summary(s_long_hyper_emmeans)
+
+s_long_hyper_em_df <- as.data.frame(s_long_hyper_emmeans)
+
+s_long__hyper_pval <- as.data.frame(pairs(s_long_hyper_emmeans, adjust = "fdr"))
+```
+
+##### Longitudinal Hyper figure
+
+```{r}
+s_long_hyper_emmeans <- s_long_hyper_em_df |> 
+  mutate(DateType = factor(DateType, levels = c("None", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")),
+         Treatment = factor(Treatment, levels = c("NoCo", "CP", "CP+S", "CS", "SHAM")),
+         SE_lower = emmean - SE,
+         SE_Upper = emmean + SE) 
+```
+
+
+I am going to make the top part of the figure for all 3 groups and it be 3 facets
+
+```{r}
+s_long_hyper <- ggplot() +
+  geom_jitter(
+    data = Secondary_Raw,
+    aes(x = DateType, y = HyperAUC, color = Treatment),
+    width = 0.15, height = 0, alpha = 0.3, size = 1.5
+  ) +
+  geom_line(
+    data = s_long_hyper_emmeans,
+    aes(x = DateType, y = emmean, color = Treatment, group = 1),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = s_long_hyper_emmeans,
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3
+  ) +
+  geom_errorbar(
+    data = s_long_hyper_emmeans,
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.1, linewidth = 0.7
+  ) +
+  coord_cartesian(ylim = c(-5, 44)) +
+  scale_color_manual(values = treatmentcolors) +
+  labs(x = "DateType", y = "Hyper TD (Degree Hours") +
+  theme_bw() +
+     facet_wrap(~ Treatment, ncol = 1) +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+print(s_long_hyper)
+
+ggsave(
+  filename = "secondary_longitudinal_hyper.png", 
+  plot = s_long_hyper, 
+  width = 8,  # Narrower width (inches)
+  height = 10,  # Much taller height (inches)
+  dpi = 300)
 ```
 
 ## Longitudinal Models
@@ -1374,9 +2252,7 @@ All_bats_glm <- glm(AUC_D21 ~ Treatment + AUC_D0,
 
 summary(All_bats_glm)
 ```
-As suspected no correlation even when including bats that never underwent a thermal challenge. 
-
-
+As suspected no correlation even when including bats that never underwent a thermal challenge.
 
 ### Primary vs 1, 2, 3
 
@@ -1409,6 +2285,7 @@ interact_plot(Primary_long_glm_1, pred = AUC_D0, modx = Treatment, interval = TR
   labs(x = "Primary AUC", y = "Primary+1 AUC") +
   theme_bw()
 ```
+
 
 #### Hyper and hypo 
 
@@ -1458,6 +2335,26 @@ summary(Secondary_long_glm_3)
 ### Basal vs Primary Model
 
 ```{r}
+TC_Basal <- Analysis_results |> 
+  filter(Treatment %in% c("CP", "CP+S"),
+         DateType %in% c("Basal TC", "Primary"))
+```
+
+
+```{r}
+Basal_mixed <- lmerTest::lmer(Total_AUC ~ DateType + Weight + (1 | Group / Bat_ID),  data = TC_Basal)
+
+# Check the summary
+summary(Basal_mixed)
+
+basalmixed_emmeans <- emmeans(Basal_mixed, ~ DateType)
+
+summary(basalmixed_emmeans)
+
+pairs(basalmixed_emmeans, adjust = "fdr")
+
+basal_emmeans_df <- as.data.frame(basalmixed_emmeans)
+basal_pvalues <- as.data.frame(pairs(basalmixed_emmeans, adjust = "fdr"))
 
 ```
 

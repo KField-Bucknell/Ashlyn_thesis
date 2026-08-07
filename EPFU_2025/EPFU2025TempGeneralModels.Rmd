@@ -33,7 +33,7 @@ if (!require("colorspace")) install.packages("colorspace"); library(colorspace)
 if (!require("broom")) install.packages("broom"); library(broom)
 if (!require("performance")) install.packages("performance"); library(performance)
 if (!require("MASS")) install.packages("MASS"); library(MASS)
-
+if (!require("car")) install.packages("car"); library(car)
 
 
 conflict_prefer_all("dplyr", quiet = TRUE)
@@ -199,6 +199,9 @@ Looking at weight with Bat_ID as a baseline.
 ```{r}
 weight_glm <- glm(Total_AUC ~ Bat_ID + Weight , data = Analysis_results)
 summary(weight_glm)
+weight_model <- tidy(weight_glm)
+
+write.csv(weight_model, "weight_glm_output.csv")
 ```
 Significant but not surprising. I want to talk to Ken about this. I think having BatID as a baseline is best, but I originally ran it without it.
 
@@ -217,6 +220,9 @@ Okay, now I am going to run sex, I honestly probably don't have enough statistic
 ```{r}
 sex_glm <- glm(Total_AUC ~ Sex, data = Analysis_results)
 summary(sex_glm)
+sex_model <- tidy(sex_glm)
+
+write.csv(sex_model, "sex_glm_output.csv")
 ```
 No significant difference between AUC in males and females.This could be due to small sample sizes and not having the statistical power though.
 
@@ -225,6 +231,10 @@ Next I am going to see if group affects AUC. Because group 1 had fewer individua
 ```{r}
 group_glm <- glm(Total_AUC ~ Group, data = Analysis_results)
 summary(group_glm)
+
+group_model <- tidy(group_glm)
+
+write.csv(group_model, "group_glm_output.csv")
 ```
 Yeah that is very significant. Which means I should probably factor in group in all my models. 
 
@@ -233,6 +243,10 @@ Next I am going to see if capture site has an affect on AUC.
 ```{r}
 site_glm <- glm(Total_AUC ~ Capture_Site, data = Analysis_results)
 summary(site_glm)
+
+site_model <- tidy(site_glm)
+
+write.csv(site_model, "site_glm_output.csv")
 ```
 No effect. My one bat from the Troxville house was removed from the study because the logger failed.
 
@@ -282,8 +296,30 @@ handle_time <- glm(Total_AUC ~ Handling_minutes,
                  data = Analysis_results) 
 
 summary(handle_time)
+
+
 ```
 Okay so handling time did not affect their AUC.
+
+## All
+
+Okay, Ken and I talked about running one large mixed effects model so I can report them all in one table
+
+```{r}
+all_mixed <- lmerTest::lmer(Total_AUC ~ Weight + Group + Sex + Capture_Site + Handled + (1 | Bat_ID), 
+                      data = Analysis_results)
+
+summary(all_mixed)
+
+Anova(all_mixed, type = "3", test.statistic = "F")
+
+all_anova <- Anova(all_mixed, type = "3", test.statistic = "F")
+
+all_tidy <- tidy(all_anova)
+
+write.csv(all_tidy, "EPFU2025_GeneralModel_Output.csv")
+```
+
 
 ## conclusions
 Okay, I think I ran models on the variables that could be affecting AUC. I ran Valid counts to make sure having some days that do not have complete data does not affect AUC. I ran weight, sex, group, and capture site. Weight and group both had a significant affect on AUC so I will be sure to factor this in to my models. Both sex and capture site did not have a significant affect so they can be left out of the model. Lastly I looked at handling. Days bats were handled were significantly different than days they were not. Primary + 3 was significantly different from handled days but secondary +3 was not, becasue of this, I kept both as 'imteresting' days instead of grouping them in with boring days. Group 1 had a significanlty higher AUC than group 2 on day Primary+3 this could potentially be because they were handled on that day but group 2 was not. 

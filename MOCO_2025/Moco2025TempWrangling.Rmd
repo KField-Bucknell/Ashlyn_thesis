@@ -934,9 +934,7 @@ Secondary_results <- Secondary_results |>
 
 ```
 
-
-
-### Shifting Data
+## Shifting Data
 
 We had two cohorts of bats for non thermally challenged bats. They followed the exact same timeline but were treated on different days of the week. This was done to limit handling time of bats at one time. Because of this, ambient temperature is different for group 1 D21 bats and group 2 D21 bats. 
 
@@ -1102,6 +1100,8 @@ Primary_Met$Treatment[Primary_Met$Treatment == "TC"] <- "Cold"
 Primary_Met$Treatment[Primary_Met$Treatment == "eVLP+LPS"] <- "NoCo"
 
 ```
+
+## Experiment Day Labeling
 
 
 
