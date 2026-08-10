@@ -36,6 +36,7 @@ if (!require("MASS")) install.packages("MASS"); library(MASS)
 if (!require("lmerTest")) install.packages("lmerTest"); library(lmerTest)
 if (!require("patchwork")) install.packages("patchwork"); library(patchwork)
 if (!require("ggsignif")) install.packages("ggsignif"); library(ggsignif)
+if (!require("car")) install.packages("car"); library(car)
 
 
 
@@ -102,17 +103,75 @@ Analysis_results <- Analysis_results |>
 
 ```
 
+## Basal Model
+
+```{r}
+BasalvNone <- Analysis_results |> 
+  filter(Treatment %in% c("CP", "CP+S", "CS"),
+         DateType %in% c("Basal TC", "None"))
+```
+
+```{r}
+Basal_none_mixed <- lmerTest::lmer(Total_AUC ~ DateType + Weight + Treatment+ (1 | Group / Bat_ID),  data = BasalvNone)
+
+# Check the summary
+summary(Basal_none_mixed)
+
+basalnonemixed_emmeans <- emmeans(Basal_none_mixed, ~ DateType | Treatment)
+
+summary(basalnonemixed_emmeans)
+
+pairs(basalnonemixed_emmeans, adjust = "fdr")
+
+basal_emmeans_df <- as.data.frame(basalnonemixed_emmeans)
+basal_pvalues <- as.data.frame(pairs(basalnonemixed_emmeans, adjust = "fdr"))
+```
+
+```{r}
+Basal_TC <- Analysis_results |> 
+  filter(Treatment %in% c("CP", "CP+S", "CS"),
+         DateType == "Basal TC")
+```
+
+
+```{r}
+options(contrasts = c("contr.sum", "contr.poly"))
+
+Basal_lm <- lm(Total_AUC ~ Weight + Group + Treatment, data = Basal_TC)
+
+# 3. Type III ANOVA: Check overall effect of Treatment
+# Look at the p-value in the 'Treatment' row
+Anova(Basal_lm, type = "3")
+
+# 4. Extract weight-adjusted means for the 3 treatments
+basal_emmeans_trt <- emmeans(Basal_lm, ~ Treatment)
+summary(basal_emmeans_trt)
+
+# 5. Run all 3 pairwise contrasts with P-value adjustment
+# Use "fdr" or "tukey" (Tukey HSD is standard for all pairwise contrasts)
+basal_pvalues <- pairs(basal_emmeans_trt, adjust = "fdr")
+summary(basal_pvalues)
+
+# 6. Save results to data frames
+basal_emmeans_df <- as.data.frame(basal_emmeans_trt)
+basal_pvalues_df <- as.data.frame(basal_pvalues)
+
+```
+
+## Primary Models
+
+Creating a dataframe for just primary data
+
 ```{r}
 Primary_Results <- Analysis_results |> 
   filter(!ExperimentDay %in% c("D20", "D21", "D22", "D23", "D24", "D25", "D26", "D27", "D28", "D29", "D30", "D31", "D32", "D33", "D34", "D35", "D36"),
          !DateType %in% c("Basal TC-1", "Basal TC", "Basal TC + 1", "Pre"))
 
+#drops experiment day levels that are no longer in the primary data frame after filtering
 Primary_Results <- droplevels(Primary_Results)
 levels(Primary_Results$Primary_Combo)
-
 ```
 
-## Primary Models
 Okay, I am going to run some primary models now.
 
 ```{r}
