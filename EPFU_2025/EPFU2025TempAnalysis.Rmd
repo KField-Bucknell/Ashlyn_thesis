@@ -2478,391 +2478,6 @@ summary(weight_model_lm3)
 ```
 
 
-
-# Older models that I ran.... 
-Okay, now running some models to look at AUC with treatment and date type.
-```{r}
-treatment_glm <- glm(Total_AUC ~ DateType * Treatment, data = Analysis_results)
-summary(treatment_glm)
-em_interaction <- emmeans(treatment_glm, ~ Treatment | DateType)
-comps_treatment_glm <- pairs(em_interaction, adjust = "tukey")
- summary(comps_treatment_glm) 
- Treatxdatetype <- summary(comps_treatment_glm) 
-
-glm_auc_txd <- as.data.frame(Treatxdatetype)
-
-write.csv(glm_auc_txd, "glm_auc_txd.csv", row.names = FALSE)
- 
-#  adding weight into this model since we already established that it effects AUC
-treatment_glm2 <- glm(Total_AUC ~ Weight + DateType * Treatment, data = Analysis_results)
-summary(treatment_glm2)
-
-em_interaction2 <- emmeans(treatment_glm2, ~ Treatment | DateType)
-
-comps_treatment_glm2 <- pairs(em_interaction2, adjust = "tukey")
- summary(comps_treatment_glm2) 
-
-Treatxdatetype2 <- summary(comps_treatment_glm2) 
-
-glm_auc_txd2 <- as.data.frame(Treatxdatetype2)
-
-write.csv(glm_auc_txd2, "glm_auc_txd2.csv", row.names = FALSE)
-```
-
-
-Rerunning the model above but including group. Because I had more bats in group 2 and group 1 bats were handled on D 3, 4 and 5 of the experiment but group 2 bats weren't there is likely a difference.
-```{r}
-treatment_glm3 <- glm(Total_AUC ~ Group + Weight + DateType * Treatment, data = Analysis_results)
-summary(treatment_glm3)
-
-em_interaction3 <- emmeans(treatment_glm3, ~ Treatment | DateType)
-
-comps_treatment_glm3 <- pairs(em_interaction3, adjust = "tukey")
- summary(comps_treatment_glm3) 
-
-Treatxdatetype3 <- summary(comps_treatment_glm3) 
-
-glm_auc_txd3 <- as.data.frame(Treatxdatetype3)
-
-```
-Okay, this is great, but its running a lot of interactions that I do not care about, so I want to only run interesting interactions.
-
-```{r}
-# 1. Create a combined grouping variable
-Analysis_results$Group_Combo <- factor(paste(Analysis_results$Treatment, Analysis_results$DateType, sep = "_"))
-
-# 2. Run the model with the combined variable instead of the separate ones
-treatment_glm4 <- glm(Total_AUC ~ Group + Weight + Group_Combo, data = Analysis_results)
-
-levels(Analysis_results$Group_Combo)
-```
-
-```{r}
-# Calculate the adjusted means for all 73 combinations
-all_model_means <- emmeans(treatment_glm4, ~ Group_Combo)
-
-all_pairs_tukey <- pairs(all_model_means, adjust = "tukey")
-
-# ==============================================================================
-# 4. SURGICAL STRIKES (SUBSET THEN PAIRS)
-# ==============================================================================
-
-### Hypothesis 1: Comparisons on Day 1 ###
-# First, slice out just the Day 1 groups you care about
-Primary1_model <- pairs(subset(all_model_means, 
-  Group_Combo %in% c("CS_Primary", "NoCo_Primary", "SHAM_Primary")))
-
-# Second, pair them up (R only calculates 3 comparisons here)
-#pairs(Primary1_model, adjust = "tukey")
-
-
-### Hypothesis 2: Comparisons on Day 2 ###
-# Slice out just the Day 2 groups you care about
-Primary2_model <- pairs(subset(
-  all_model_means, 
-  Group_Combo %in% c("CP_Primary", "CP+S_Primary", "NoCo_Primary", "CS_Primary")))
-
-# Pair them up
-#pairs(Primary2_model, adjust = "tukey")
-```
-
-```{r}
-Secondary1_model <- pairs(subset(all_model_means, 
-  Group_Combo %in% c("SHAM_Secondary", "NoCo_Secondary")))
-
-# Pair them up
-#pairs(Secondary1_model, adjust = "tukey")
-
-Secondary2_model <- pairs(subset(all_model_means, 
-  Group_Combo %in% c("NoCo_Secondary", "CP_Secondary")))
-
-# Pair them up
-#pairs(Secondary2_model, adjust = "tukey")
-
-Secondary3_model <- pairs(subset(all_model_means, 
-  Group_Combo %in% c("CP+S_Secondary", "CS_Secondary")))
-
-# Pair them up
-#pairs(Secondary3_model, adjust = "tukey")
-```
-
-```{r}
-None_model <- pairs(subset(all_model_means, 
-  Group_Combo %in% c("SHAM_None", "NoCo_None", "CP_None", "CS_None", "CP+S_None")))
-
-#pairs(None_model, adjust = "tukey")
-```
-
-```{r D1 Models} 
-D1_1 <- pairs(subset(all_model_means, 
-  Group_Combo %in% c("CS_Primary + 1", "NoCo_Primary + 1", "SHAM_Primary + 1")))
-
-# Second, pair them up (R only calculates 3 comparisons here)
-#pairs(D1_1, adjust = "tukey")
-
-
-### Hypothesis 2: Comparisons on Day 2 ###
-# Slice out just the Day 2 groups you care about
-D1_2 <- pairs(subset(
-  all_model_means, 
-  Group_Combo %in% c("CP_Primary + 1", "CP+S_Primary + 1", "NoCo_Primary + 1", "CS_Primary + 1")))
-
-# Pair them up
-#pairs(D1_2, adjust = "tukey")
-```
-
-```{r D2 Models} 
-D2_1 <- pairs(subset(all_model_means, 
-  Group_Combo %in% c("CS_Primary + 2", "NoCo_Primary + 2", "SHAM_Primary + 2")))
-
-# Second, pair them up (R only calculates 3 comparisons here)
-#pairs(D2_1, adjust = "tukey")
-
-
-### Hypothesis 2: Comparisons on Day 2 ###
-# Slice out just the Day 2 groups you care about
-D2_2 <- pairs(subset(
-  all_model_means, 
-  Group_Combo %in% c("CP_Primary + 2", "CP+S_Primary + 2", "NoCo_Primary + 2", "CS_Primary + 2")))
-
-# Pair them up
-#pairs(D2_2, adjust = "tukey")
-```
-
-```{r D3 Models} 
-D3_1 <- pairs(subset(all_model_means, 
-  Group_Combo %in% c("CS_Primary + 3", "NoCo_Primary + 3", "SHAM_Primary + 3")))
-
-# Second, pair them up (R only calculates 3 comparisons here)
-#pairs(D3_1, adjust = "tukey")
-
-
-### Hypothesis 2: Comparisons on Day 2 ###
-# Slice out just the Day 2 groups you care about
-D3_2 <- pairs(subset(
-  all_model_means, 
-  Group_Combo %in% c("CP_Primary + 3", "CP+S_Primary + 3", "NoCo_Primary + 3", "CS_Primary + 3")))
-
-# Pair them up
-#pairs(D3_2, adjust = "tukey")
-```
-
-```{r}
-my_selected_comparisons <- rbind(None_model, Primary1_model, Primary2_model, D1_1, D1_2, D2_1, D2_2, D3_1, D3_2, Secondary1_model, Secondary2_model, Secondary3_model)
-
-# 3. Run ONE unified Tukey test across just this curated pool
-summary(my_selected_comparisons, adjust = "tukey")
-```
-
-
-I don't really want to go too far down running these models because I know some bats did not use torpor while in their thermal challenge. So p-values could be misleading since they are still in their assigned groups and not grouped by what they did.
-
-## Max and Min models
-
-```{r}
-cor(Analysis_results[, c('Total_AUC', 'Day_max', 'Day_min')])
-```
-so minimum temp and AUC are probably correlated. 
-
-```{r}
-Temp_model1 <- glm(Total_AUC ~ Bat_ID + Day_max + Day_min, data = Analysis_results)
-summary(Temp_model1)
-
-stepAIC(Temp_model1, direction = "backward")
-
-```
-
-## Hyper and Hypo AUC
-
-```{r}
-cor(Analysis_results[, c('Total_AUC', 'HyperAUC', 'HypoAUC')])
-```
-
-I want to look at AUC for bats in basal TC and factor in cage.
-```{r}
-basal_analysis <- Analysis_results |> 
-  filter(DateType == "Basal TC")
-
-basal <- glm(Total_AUC ~ Cage, data = basal_analysis)
-summary(basal)
-#basal_comps <- glht(basal, linfct = mcp(Cage = "Tukey"))
-#summary(basal_comps)
-```
-So it looks like cage did not effect AUC.
-
-Okay, now I am going to look at tc for each treatment group.
-```{r}
-BP_TC_analysis <- Analysis_results |> 
-  filter(DateType %in% c("Basal TC", "Primary") & Treatment %in% c("CP+S", "CP"))
-CP_TC <- Analysis_results |> 
-  filter(DateType %in% c("Basal TC", "Primary") & Treatment == "CP")
-CPS_TC <- Analysis_results |> 
-  filter(DateType %in% c("Basal TC", "Primary", "Secondary") & Treatment == "CP+S") |> 
-  group_by(Bat_ID) |> 
-  filter(n() >= 3)
-CS_TC <- Analysis_results |> 
-  filter(DateType %in% c("Basal TC", "Secondary") & Treatment == "CS") 
-
-
-BP_Analysis <- glm(Total_AUC ~ DateType, data = BP_TC_analysis)
-summary(BP_Analysis)
-#comps <- glht(BP_Analysis, linfct = mcp(DateType = "Tukey"))
-#summary(comps)
-
-CP_TCglm <- glm(Total_AUC ~ DateType, data = CP_TC)
-summary(CP_TCglm)
-CP_TCglm_comp <- pairs(emmeans(CP_TCglm, ~ DateType), adjust = "tukey")
-summary(CP_TCglm_comp)
-
-CPS_TCglm <- glm(Total_AUC ~ DateType, data = CPS_TC)
-summary(CPS_TCglm)
-CPS_TCglm_comp <- pairs(emmeans(CPS_TCglm, ~ DateType), adjust = "tukey")
-summary(CPS_TCglm_comp)
-
-CS_TCglm <- glm(Total_AUC ~ DateType, data = CS_TC)
-summary(CS_TCglm)
-CS_TCglm_comp <- pairs(emmeans(CS_TCglm, ~ DateType), adjust = "tukey")
-summary(CS_TCglm_comp)
-```
-Okay! Clearly a difference in AUC when comparing basal TC to primary TC!
-
-
-
-```{r}
-SHAM <- Analysis_results |> 
-  filter(Treatment == "SHAM")
-
-NoCo <- Analysis_results |> 
-  filter(Treatment == "NoCo")
-
-CPS <- Analysis_results |> 
-  filter(Treatment == "CP+S")
-
-CP <- Analysis_results |> 
-  filter(Treatment == "CP")
-
-CS <- Analysis_results |> 
-  filter(Treatment == "CS")
-```
-
-```{r}
-SHAM_glm <- glm(Total_AUC ~ Bat_ID , data = SHAM)
-summary(SHAM_glm)
-```
-
-```{r}
-NoCO_glm <- glm(Total_AUC ~ Bat_ID , data = NoCo)
-summary(NoCO_glm)
-```
-
-```{r}
-CPS_glm <- glm(Total_AUC ~ Bat_ID , data = CPS)
-summary(CPS_glm)
-```
-
-```{r}
-CP_glm <- glm(Total_AUC ~ Bat_ID , data = CP)
-summary(CP_glm)
-```
-
-```{r}
-CS_glm <- glm(Total_AUC ~ Bat_ID , data = CS)
-summary(CS_glm)
-```
-
-```{r}
-Primary_comp <- Analysis_results |> 
-  filter(DateType == "Primary")
-
-Sec_comp <- Analysis_results |> 
-  filter(DateType == "Secondary")
-
-PS_Compare <- inner_join(Primary_comp, Sec_comp, join_by(Bat_ID))
-PS_glm <- glm(Total_AUC.y ~ Total_AUC.x, data = PS_Compare)
-summary(PS_glm)
-emtrends(PS_glm, ~ Total_AUC.x, var = "Total_AUC.x")
-```
-Not significant, but i want to look at this with only TC bats. Also I want to factor treatment into it. 
-
-```{r}
-PS_glm2 <- glm(Total_AUC.y ~ Total_AUC.x *Treatment.x, data = PS_Compare)
-summary(PS_glm2)
-emtrends(PS_glm2, ~ Treatment.x, var = "Total_AUC.x")
-```
-Again no significance.
-
-```{r}
-TC_primary <- Primary_comp |> 
-  filter(Treatment %in% c("CP+S", "CP", "CS"))
-
-TC_sec <- Sec_comp |> 
-  filter(Treatment %in% c("CP+S", "CP", "CS"))
-
-TC_PS_Compare <- inner_join(TC_primary, TC_sec, join_by(Bat_ID))
-TC_PS_glm <- glm(Total_AUC.y ~ Total_AUC.x, data = TC_PS_Compare)
-summary(TC_PS_glm)
-emmeans(TC_PS_glm, ~ Total_AUC.x, var = "Total_AUC.x")
-```
-Okay, this shows significance! 
-
-I am going to now take average AUC for primary to primary +3 and secondary to secondary +3
-
-```{r}
-Full_primary <- Analysis_results |> 
-  filter(DateType %in% c("Primary", "Primary + 1", "Primary + 2", "Primary + 3")) |> 
-  group_by(Bat_ID) |> 
-  mutate(Primary_AUC = mean(Total_AUC)) |> 
-  filter(DateType == "Primary") |> 
-  ungroup()
-
-Full_secondary <- Analysis_results |> 
-  filter(DateType %in% c("Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")) |> 
-  group_by(Bat_ID) |> 
-  mutate(Secondary_AUC = mean(Total_AUC)) |> 
-  filter(DateType == "Secondary") |> 
-  ungroup()
-
-PS_full <- inner_join(Full_primary, Full_secondary |> select(Bat_ID, Secondary_AUC), join_by("Bat_ID"))
-
-PS_full_glm <- glm(Secondary_AUC ~ Primary_AUC * Treatment, data = PS_full)
-summary(PS_full_glm)
-emmeans(PS_full_glm, ~ Treatment | Primary_AUC)
-
-pairs(emmeans(PS_full_glm, ~ Treatment | Primary_AUC, at = list(Primary_AUC = -140)))
-```
-
-```{r}
-# 1. Visualize the distribution to find the "cut point"
-hist(PS_Compare$Total_AUC.x, breaks = 20, main = "Distribution of Primary Torpor")
-
-# 2. Filter for 'Responders'
-CPandNOCO_compare <- PS_Compare |> 
-    filter(Treatment.x == "NoCo" | Treatment.x == "CP" & Total_AUC.x < -200) |> 
-  mutate(Primary_ratio = Total_AUC.x/Weight.x,
-         Secondary_ratio = Total_AUC.y/Weight.y)
-
-```
-
-
-```{r}
-CPandNOCO_compare_glm2 <- glm(Total_AUC.y ~ Weight.y + Total_AUC.x * Treatment.x, data = CPandNOCO_compare)
-summary(CPandNOCO_compare_glm2)
-CPandNOCO <-pairs(emmeans(CPandNOCO_compare_glm2, ~ Treatment.x | Total_AUC.x)) 
-summary(CPandNOCO)
-
-#Fix this...
-#interact_plot(CPandNOCO_compare_glm2, pred = Total_AUC.x, modx = Treatment.x, interval = #TRUE, legend.main = "Treatment Group", plot.points = TRUE) +
-#   xlim(-1800, 400) + 
-#  ylim(-2000, 200) +
-#  labs(x = "Primary AUC", y = "Secondary AUC") +
-#  # Make it look professional
-#  theme_bw()
-
-CPandNOCO_compare_glm <- glm(Total_AUC.y ~ Total_AUC.x * Treatment.x, data = CPandNOCO_compare)
-emmeans(CPandNOCO_compare_glm, ~ Treatment.x | Total_AUC.x)
-pairs(emmeans(CPandNOCO_compare_glm, ~ Treatment.x | Total_AUC.x))
-```
-
 ```{r}
 Primary_Secondary_hist <- Analysis_results |> 
   filter(DateType %in% c("Primary", "Primary + 1", "Primary + 2", "Primary + 3", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3")) |> 
@@ -2881,13 +2496,12 @@ ggsave("EPFU_Histogram.jpeg", plot = Hist, device = jpeg(), width = 8, height = 
 
 ```
 
-
-## Willis equation
-I am interested to see if there is any difference in 
-
-## Basal Temp
+## Traces and Visualizations 
 
 ```{r}
+Metadata <- read.delim("EPFU2025Metadata.tsv", # read in metadata
+     na = "NA") 
+
 Metadata <- Metadata |> 
   mutate(id = Bat_ID) |> 
   mutate(id = as.character(id)) |> 
@@ -2898,6 +2512,19 @@ Metadata2 <- Metadata |>
     Analysis_results |> select(Bat_ID, Tnorm) |> distinct(), 
     by = "Bat_ID")
 
+Results <- read.delim("EPFU2025FullResults.tsv", # read in results
+     na = "NA") 
+
+Results <- Results %>%
+  group_by(Treatment) %>%
+  mutate(Treatment_Tnorm = mean(Tnorm, na.rm = TRUE)) |> 
+  ungroup()
+```
+
+
+#### None Traces
+
+```{r}
 None_data <- Results |> 
   filter(DateType == "None") |> 
   mutate(id = Bat_ID) |> 
@@ -2909,12 +2536,19 @@ none_data2 <- data.table::data.table(None_data, key = "id")
 
  none_behavr <- behavr(none_data2, none_met)
 
-none_behavr |>
-  ggetho(aes(x = t, y = Temperature, colour = Treatment, fill = Treatment)) +
-  geom_hline(aes(yintercept = Tnorm), 
-             linetype = "dashed", 
-             color = "black", 
-             linewidth = 0.8) +
+ggetho(
+  none_behavr, 
+  aes(y = Temperature, colour = Treatment, fill = Treatment), 
+  time_wrap = 86400,
+  time_offset = 50400 # 14:00 offset in seconds (14 * 3600)
+) +
+  geom_hline(
+    aes(yintercept = Tnorm), 
+    linetype = "dashed", 
+    color = "black", 
+    linewidth = 0.8
+  ) +
+  # 95% Bootstrapped CI
   stat_pop_etho() +
   stat_ld_annotations(
     period = 86400,
@@ -2923,47 +2557,116 @@ none_behavr |>
     ld_colours = c("black", "white")
   ) +
   facet_grid(Treatment ~ .) +
+  # Format x-axis starting at 14:00 (50400s) through 14:00 next day (136800s)
   scale_x_continuous(
-    name = "Date/time",
-    # Start at the minimum time in your data, end at max, move by 2 hours (7200s)
-    breaks = seq(min(none_behavr$t), max(none_behavr$t), by = 7200), 
+    name = "Time of Day",
+    breaks = seq(50400, 50400 + 86400, by = 7200),
     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%H:%M"),
-    expand = c(0,0)
+    expand = c(0, 0)
   ) +
   scale_colour_manual(values = treatmentcolors) +
   scale_fill_manual(values = treatmentcolors) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-  theme(text = element_text(size = 18), panel.grid = element_blank())+
-  labs(y = "Temp (C)") -> EPFU_none
+  theme(
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+    text = element_text(size = 18),
+    panel.grid = element_blank()
+  ) +
+  labs(y = "Temp (°C)") -> EPFU_none
 
 print(EPFU_none)
 
+ggetho(
+  none_behavr, 
+  aes(y = Temperature, colour = Treatment, fill = Treatment), 
+  time_wrap = 86400,
+  time_offset = 50400 # X-axis starts at 14:00
+) +
+  geom_hline(
+    aes(yintercept = Tnorm), 
+    linetype = "dashed", 
+    color = "black", 
+    linewidth = 0.8
+  ) +
+  # 95% Bootstrapped CI
+  stat_pop_etho() +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 32400,      # Offset from 14:00 start to 23:00 light onset (9 hours = 32400s)
+    l_duration = 43200, # Light duration = 12 hours
+    ld_colours = c("black", "white")
+  ) +
+  facet_grid(Treatment ~ .) +
+  scale_x_continuous(
+    name = "Time of Day",
+    breaks = seq(50400, 50400 + 86400, by = 7200),
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%H:%M"),
+    expand = c(0, 0)
+  ) +
+  scale_colour_manual(values = treatmentcolors) +
+  scale_fill_manual(values = treatmentcolors) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+    text = element_text(size = 18),
+    panel.grid = element_blank()
+  ) +
+  labs(y = "Temp (°C)") -> EPFU_none
 
-ggsave("EPFU_none.jpeg", plot = EPFU_none, device = jpeg(), width = 12, height = 6.67)
+
+ggsave("EPFU_none.jpeg", plot = EPFU_none, device = jpeg(), width = 10, height = 6.67)
 ```
 
 
 ```{r}
-Basal_TC <- Basal_TC |> 
+none_summary_table <- None_data %>%
+  group_by(Treatment) |> 
+  summarise(
+    Minimum = min(Temperature, na.rm = TRUE),
+    Maximum = max(Temperature, na.rm = TRUE),
+    Average = mean(Temperature, na.rm = TRUE)) |> 
+  ungroup()
+```
+
+
+### Basal Traces
+
+```{r}
+Basal_TC_Traces <- read.delim("EPFU2025Basal_TC.tsv", # read in results
+     na = "NA")
+
+Basal_TC_Names <- unique(Basal_TC_Traces$Bat_ID)
+  
+ Basal_TC_Traces <- Basal_TC_Traces |> 
   mutate(id = Bat_ID) |> 
   mutate(t = NumberDate) |> 
-  mutate(id = as.character(id))
+  mutate(id = as.character(id)) 
+ 
+Basal_Metadata <- Metadata2 |> 
+  filter(Bat_ID %in% Basal_TC_Names) |> 
+    mutate(id = Bat_ID) |> 
+    mutate(id = as.character(id)) 
+```
 
-Basal_met <- data.table::data.table(Metadata2, key = "id")
-Basal_TC2 <- data.table::data.table(Basal_TC, key = "id")
 
- basal_behavr <- behavr(Basal_TC2, Basal_met)
+```{r}
+Basal_met <- data.table::data.table(Basal_Metadata, key = "id")
+Basal_Traces <- data.table::data.table(Basal_TC_Traces, key = "id")
+
+ basal_behavr <- behavr(Basal_Traces, Basal_met)
 ```
 
 ```{r}
+t_start <- min(basal_behavr$t)
+t_end   <- max(basal_behavr$t)
+
 basal_behavr |>
   ggetho(aes(x = t, y = Temperature, colour = Treatment, fill = Treatment)) +
   geom_hline(aes(yintercept = Tnorm), 
              linetype = "dashed", 
              color = "black", 
              linewidth = 0.8) +
-  stat_pop_etho() +
+ stat_pop_etho() +
   stat_ld_annotations(
     period = 86400,
     phase = 39600,
@@ -2972,23 +2675,27 @@ basal_behavr |>
   ) +
   facet_grid(Treatment ~ .) +
   scale_x_continuous(
-    name = "Date/time",
-    # Start at the minimum time in your data, end at max, move by 2 hours (7200s)
-    breaks = seq(min(basal_behavr$t), max(basal_behavr$t), by = 7200), 
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%H:%M"),
-    expand = c(0,0)
+    name = "Time in Thermal Challenge (hours)",
+    # Breaks MUST start at min(t) in the dataset!
+    breaks = seq(t_start, t_end, by = 7200),
+    # Labels subtract start time and convert seconds to hours
+    labels = function(x) (x - t_start) / 3600,
+    expand = c(0, 0)
   ) +
   scale_colour_manual(values = treatmentcolors) +
   scale_fill_manual(values = treatmentcolors) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-  theme(text = element_text(size = 18), panel.grid = element_blank())+
+  theme(legend.position = "none",
+        axis.ticks.x = element_line(color = "black", linewidth = 0.8),
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, color = "black"),
+    text = element_text(size = 18), 
+    panel.grid = element_blank()
+  ) +
   labs(y = "Temp (C)") -> EPFU_Basal
 
 print(EPFU_Basal)
 
-
-ggsave("EPFU_Basal.jpeg", plot = EPFU_Basal, device = jpeg(), width = 12, height = 6.67)
+ggsave("EPFU_Basal.jpeg", plot = EPFU_Basal, device = jpeg(), width = 10, height = 6.67)
 ```
 
 

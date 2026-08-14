@@ -101,7 +101,7 @@ ResultsNames <- unique(Results$Bat_ID)
 Results <- Results |> 
   group_by(Bat_ID) |> 
   mutate(Temp_norm = mean(Temperature[DateType == "None" &
-                                      Temperature > 31], na.rm = TRUE)) |> 
+                                      Temperature > 27], na.rm = TRUE)) |> 
   ungroup()
 
 Results <- Results |> 
@@ -328,4 +328,7 @@ This is where I am going to end this RMD. My actual analysis will be in another 
 
 ```{r}
 write_tsv(Analysis_results, file = "EPFU2025Analysis_Results.tsv")
+
+write_tsv(Results, file = "EPFU2025FullResults.tsv")
+
 ```
