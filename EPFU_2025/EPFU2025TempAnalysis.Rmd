@@ -1142,7 +1142,7 @@ Secondary_Results <- droplevels(Secondary_Results)
 levels(Secondary_Results$Group_Combo)
 ```
 
-I am going to run the same models for seconary as I did for primary
+I am going to run the same models for secondary as I did for primary
 ```{r}
 secondary_glm <- glm(Total_AUC ~ Bat_ID + Group + Weight + Group_Combo, data = Secondary_Results_filtered)
 
@@ -1446,6 +1446,9 @@ summary(s_long_emmeans)
 s_long_em_df <- as.data.frame(s_long_emmeans)
 
 s_long_pval <- as.data.frame(pairs(s_long_emmeans, adjust = "fdr"))
+
+write.csv(s_long_pval, "EPFU2025_secondary_long_Output.csv")
+
 ```
 
 ##### Longitudinal figure
@@ -1466,6 +1469,53 @@ s_long_em_df <- s_long_em_df |>
 
 
 I am going to make the top part of the figure for all 3 groups and it be 3 facets
+
+```{r}
+pd <- position_dodge(width = 0.4) # used to shift groups so they are not overlapping
+
+s_long <- ggplot() +
+    geom_line(
+    data = s_long_em_df,
+    aes(x = DateType, y = emmean, color = Treatment, group = Treatment),
+    linewidth = 1,
+    position = pd
+  ) +
+  geom_point(
+    data = s_long_em_df,
+    aes(x = DateType, y = emmean, color = Treatment),
+    size = 3,
+    position = pd
+  ) +
+  geom_errorbar(
+    data = s_long_em_df,
+    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
+    width = 0.3, # changes width of t bars 
+    linewidth = 0.7, # changes width of the line
+    position = pd
+  ) +
+  scale_color_manual(values = treatmentcolors) +
+  labs(x = "Experiment Day", y = "NTD (Degree Hours) EMM", color = "Treatment",
+       fill = "Treatment") +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12, color = "black"),
+    strip.text = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 12, face = "bold")  )
+print(s_long)
+
+ggsave(
+  filename = "secondary_longitudinal_plot.png", 
+  plot = s_long, 
+  width = 7,  # Make narrower (inches)
+  height = 6,  # Make taller  (inches)
+  dpi = 300)
+```
 
 ```{r}
 s_long <- ggplot() +
@@ -1491,9 +1541,8 @@ s_long <- ggplot() +
   ) +
   coord_cartesian(ylim = c(-300, 80)) +
   scale_color_manual(values = treatmentcolors) +
-  labs(x = "DateType", y = "NTD (Degree Hours") +
+  labs(x = "Experiment Day", y = "NTD (Degree Hours") +
   theme_bw() +
-     facet_wrap(~ Treatment, ncol = 1) +
   theme(
     legend.position = "none",
     panel.grid.major = element_blank(),
@@ -1503,8 +1552,34 @@ print(s_long)
 ggsave(
   filename = "secondary_longitudinal.png", 
   plot = s_long, 
-  width = 8,  # Narrower width (inches)
+  width = 10,  # Narrower width (inches)
   height = 10,  # Much taller height (inches)
+  dpi = 300)
+
+pd <- position_dodge(width = 0.4)
+
+ggplot(s_long_em_df, aes(x = DateType, y = emmean, color = Treatment, group = Treatment, fill = Treatment)) +
+  # 1. Smooth, non-cluttered confidence intervals
+  geom_ribbon(aes(ymin = SE_lower, ymax = SE_Upper), alpha = 0.15, color = NA, position = pd) +
+  # 2. Main lines
+  geom_line(linewidth = 0.9, position = pd) +
+  # 3. Clean points
+  geom_point(size = 2.5, position = pd) +
+  scale_color_manual(values = treatmentcolors) +
+  scale_fill_manual(values = treatmentcolors) +
+  labs(x = "Experiment Day", y = "NTD (Degree Hours) EMM", color = "Treatment", fill = "Treatment") +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    panel.grid.major.x = element_blank(),
+    axis.title = element_text(size = 13, face = "bold"),
+    axis.text = element_text(size = 11, color = "black")) -> s_long2
+
+ggsave(
+  filename = "secondary_longitudinal2_plot.png", 
+  plot = s_long2, 
+  width = 7,  # Make narrower (inches)
+  height = 6,  # Make taller  (inches)
   dpi = 300)
 ```
 
