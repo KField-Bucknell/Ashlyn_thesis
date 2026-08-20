@@ -543,7 +543,8 @@ summary(as.factor(Trimmed$Bat_ID))
 
 Trimmed <- Trimmed |> 
   filter(!Bat_ID == 'APS36007_boost',
-         NumberDate >= 1756908001)
+         NumberDate >= 1756908001,
+         !(Bat_ID == 'APS36007' & NumberDate == 1759327201))
 
 ```
 
@@ -709,7 +710,7 @@ Bat_results_met <- bind_rows(renaming_results, APS36010, APS36057, APS60079, APS
 ## Ambient Temp
 I do not have ambient data from the flight cage, but I do have ambient data and relative humidity from the thermal challenges. There were two sensor pushes for each thermal challenge. I am going to take the average of the two. 
 
-### Basal TC
+l.### Basal TC
 ```{r}
 Basal_Ambient1 <- read.csv("Ambient/09.04.2025_basaltempdata1.csv") |>  # read in temp from top of incubator from D0 thermal challenge |> 
   mutate(DateTime = mdy_hm(DateTime)) |> 
@@ -1242,6 +1243,23 @@ budha_check2 <- budha2%>%
 ggplotly(budha_check2)
 
 ```
+## Fixing basal dataframe
+
+```{r}
+Basal_Full <- Results |> 
+  filter(DateType == "Basal TC")
+
+Basal_Full$time_aligned <- Basal_Full$DateTime
+
+Basal_Full$time_aligned[Basal_Full$Group == "GP 2"] <- Basal_Full$time_aligned[Basal_Full$Group == "GP 2"] + lubridate::days(3)
+
+Basal_Full <- Basal_Full |> 
+  mutate(NumberDate_shifted = as.numeric(time_aligned))
+
+```
+
+
+## Exporting
 
 ```{r}
 write_tsv(Bat_Secondary, file = "EPFU2025SecondaryTemperature.tsv")
@@ -1253,6 +1271,8 @@ write_tsv(Primary_TC_results, file = "EPFU2025Primary_TC.tsv")
 write_tsv(Basal_TC_results, file = "EPFU2025Basal_TC.tsv")
 write_tsv(Secondary_TC_results, file = "EPFU2025Secondary_TC.tsv")
 write_tsv(Results, file = "EPFU2025Results_Analysis.tsv")
+write_tsv(Basal_Full, file = "EPFU2025FullBasal.tsv")
+
 
 write.csv(budha1, file = "EPFU2025_TCBats.csv")
 write.csv(budha2, file = "EPFU2025_AllBats.csv")

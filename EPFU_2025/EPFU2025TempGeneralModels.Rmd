@@ -123,8 +123,10 @@ Results <- Results |>
   ungroup()
 
 Results <- Results |> 
+  filter(valid_counts >= 137) |> 
   group_by(Treatment) |> 
-  mutate(Tnorm = mean(Temp_norm)) |> 
+  mutate(Tnorm = mean(Temp_norm), #group tnorm
+        sd_tnorm  = sd(Temp_norm)) |> #sd for group tnorm
   ungroup()
 
 Results <- Results |> 
@@ -146,7 +148,7 @@ Results <- Results |>
 Analysis_results <- Results |> 
   filter(grepl("13:50", DateTime),
          valid_counts >= 137) |> 
-  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group, Capture_Site, Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage , Tnorm, Day_min, Day_max, HyperAUC, HypoAUC, Hyper_Count, Hypo_Count, Handling_minutes, Day_Num) |> 
+  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group, Capture_Site, Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage , Tnorm, sd_tnorm, Day_min, Day_max, HyperAUC, HypoAUC, Hyper_Count, Hypo_Count, Handling_minutes, Day_Num) |> 
   mutate(Bat_ID = as.factor(Bat_ID),
          DateType = as.factor(DateType),
          ExperimentDay = as.factor(ExperimentDay),
@@ -159,7 +161,7 @@ Analysis_results <- Results |>
 ten_percent_Analysis_results <- Results |> 
   filter(grepl("13:50", DateTime),
          valid_counts >= 130) |> 
-  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group,Capture_Site,  Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage , Tnorm, Day_min, Day_max, HyperAUC, HypoAUC, Hyper_Count, Hypo_Count, Handling_minutes, Day_Num) |> 
+  select(Bat_ID, DateType, ExperimentDay, Sex, Treatment, Group,Capture_Site,  Temp_norm, Handled, Total_AUC, valid_counts, Weight, Cage , Tnorm, sd_tnorm,  Day_min, Day_max, HyperAUC, HypoAUC, Hyper_Count, Hypo_Count, Handling_minutes, Day_Num) |> 
   mutate(Bat_ID = as.factor(Bat_ID),
          DateType = as.factor(DateType),
          ExperimentDay = as.factor(ExperimentDay),

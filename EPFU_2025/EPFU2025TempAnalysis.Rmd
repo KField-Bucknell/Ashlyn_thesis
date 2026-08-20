@@ -37,6 +37,7 @@ if (!require("lmerTest")) install.packages("lmerTest"); library(lmerTest)
 if (!require("patchwork")) install.packages("patchwork"); library(patchwork)
 if (!require("ggsignif")) install.packages("ggsignif"); library(ggsignif)
 if (!require("car")) install.packages("car"); library(car)
+if (!require("Hmisc")) install.packages("Hmisc"); library(Hmisc)
 
 
 
@@ -111,8 +112,9 @@ BasalvNone <- Analysis_results |>
          DateType %in% c("Basal TC", "None"))
 ```
 
+Comparing none to basal thermal challenge NTD
 ```{r}
-Basal_none_mixed <- lmerTest::lmer(Total_AUC ~ DateType + Weight + Treatment+ (1 | Group / Bat_ID),  data = BasalvNone)
+Basal_none_mixed <- lmerTest::lmer(Total_AUC ~ DateType * Treatment + Weight + (1 | Group / Bat_ID),  data = BasalvNone)
 
 # Check the summary
 summary(Basal_none_mixed)
@@ -125,6 +127,9 @@ pairs(basalnonemixed_emmeans, adjust = "fdr")
 
 basal_emmeans_df <- as.data.frame(basalnonemixed_emmeans)
 basal_pvalues <- as.data.frame(pairs(basalnonemixed_emmeans, adjust = "fdr"))
+
+write.csv(basal_pvalues, "EPFU2025_basalnone_Output.csv")
+
 ```
 
 ```{r}
@@ -170,6 +175,7 @@ Primary_Results <- Analysis_results |>
 #drops experiment day levels that are no longer in the primary data frame after filtering
 Primary_Results <- droplevels(Primary_Results)
 levels(Primary_Results$Primary_Combo)
+
 ```
 
 Okay, I am going to run some primary models now.
@@ -306,15 +312,12 @@ prim_sig_bars <- prim_sig_bars |>
 comparison_bars_primary <- prim_sig_bars 
 
 prim_sig_bars <- prim_sig_bars |> 
-  mutate(annotation = paste("P-Value =", p.value2))
-
-prim_sig_bars <- prim_sig_bars |> 
   filter(p.value < 0.05)
 
 prim_sig_bars <- prim_sig_bars |> 
  mutate(y_position = case_when(
-    contrast == "NvC_P" ~ 100,
-    contrast == "NvC_2" ~ 100  ))
+    contrast == "NvC_P" ~ 125,
+    contrast == "NvC_2" ~ 125  ))
 
 ```
 
@@ -336,105 +339,10 @@ prim_sig_bars <- prim_sig_bars |>
 ```
 
 
-This is my 95%
-```{r}
-p_top95 <- ggplot() +
-  geom_jitter(
-    data = subset(Primary_raw, Treatment == "NoCo"),
-    aes(x = DateType, y = Total_AUC, color = Treatment),
-    width = 0.15, height = 0, alpha = 0.3, size = 1.5
-  ) +
-  geom_line(
-    data = subset(em_df_split, Treatment == "NoCo"),
-    aes(x = DateType, y = emmean, color = Treatment, group = 1),
-    linewidth = 1
-  ) +
-  geom_point(
-    data = subset(em_df_split, Treatment == "NoCo"),
-    aes(x = DateType, y = emmean, color = Treatment),
-    size = 3
-  ) +
-  geom_errorbar(
-    data = subset(em_df_split, Treatment == "NoCo"),
-    aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
-    width = 0.1, linewidth = 0.7
-  ) +
-  coord_cartesian(ylim = c(-275, 125)) +
-  scale_color_manual(values = primary_colors) +
-  labs(x = "DateType", y = NULL) +
-  theme_bw() +
-  theme(
-    legend.position = "none",
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
-  )
-print(p_top95)
-
-# 2. Bottom Plot (Faceted treatments with raw data points in the background)
-p_bottom95 <- ggplot() +
-  geom_jitter(
-    data = Primary_raw,
-    aes(x = Treatment, y = Total_AUC, color = Treatment),
-    width = 0.15, height = 0, alpha = 0.3, size = 1.5
-  ) +
-  geom_errorbar(
-    data = em_df_split,
-    aes(x = Treatment, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
-    width = 0.1, linewidth = 0.7
-  ) +
-  geom_point(
-    data = em_df_split,
-    aes(x = Treatment, y = emmean, fill = Treatment),
-    shape = 22, color = "black", stroke = 0.5, size = 3
-  ) +
-   geom_signif(data = prim_sig_bars,
-    aes(xmin = Left, 
-      xmax = Right, 
-      annotations = annotation, 
-      y_position = y_position),
-    manual = TRUE,
-    tip_length = 0.04,
-    textsize = 3,
-    vjust = -0.6) +
-  geom_signif(data = comparison_bars_primary,
-    aes(xmin = Left, 
-      xmax = Right, 
-      annotations = "", 
-      y_position = y_position),
-    manual = TRUE,
-    tip_length = -0.05,
-    textsize = 3,
-    vjust = -0.6) +
-    coord_cartesian(ylim = c(-275, 125)) +
-  scale_color_manual(values = primary_colors) +
-  scale_fill_manual(values = primary_colors) +
-  facet_wrap(~ DateType, ncol = 3) + 
-  labs(x = "Primary Treatment", y = NULL, color = "Primary Treatment") +
-  theme_bw() +
-  theme(
-    legend.position = "none",
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
-  )
-print(p_bottom95)
-
-combined_plot95 <- (p_top95 / p_divider / p_bottom95) + 
-  plot_layout(heights = c(1, 0.05, 1.9), guides = "collect", axis_titles = "collect") & 
-  labs(y = "NTD (Degree Hours)") 
-
-print(combined_plot95)
-
-ggsave(
-  filename = "primary_NTDplot_95.png", 
-  plot = combined_plot95, 
-  width = 8,  # Narrower width (inches)
-  height = 10,  # Much taller height (inches)
-  dpi = 300)
-```
 ### Longitudinal Primary
 
 ```{r}
-primary_long_mixed <- lmerTest::lmer(Total_AUC ~ DateType + Weight + Primary_Treatment + (1 | Group / Bat_ID),  data = Primary_Results)
+primary_long_mixed <- lmerTest::lmer(Total_AUC ~ DateType * Primary_Treatment + Weight + (1 | Group / Bat_ID),  data = Primary_Results)
 
 # Check the summary
 summary(primary_long_mixed)
@@ -446,6 +354,8 @@ summary(primary_long_emmeans)
 primary_long_em_df <- as.data.frame(primary_long_emmeans)
 
 primary_long_pval <- as.data.frame(pairs(primary_long_emmeans, adjust = "fdr"))
+
+write.csv(primary_long_pval, "EPFU2025_primary_long_Output.csv")
 ```
 
 ##### Longitudinal figure
@@ -468,49 +378,55 @@ plong_em_split <- plong_em_split |>
          SE_Upper = emmean + SE) 
 ```
 
-I am going to make the top part of the figure for all 3 groups and it be 3 facets
 
+I am going to make a longitudinal figure that shows EMM for each primary treatment group over the primary period
 ```{r}
-p_longitudinal <- ggplot() +
-  geom_jitter(
-    data = Primary_raw,
-    aes(x = DateType, y = Total_AUC, color = Treatment),
-    width = 0.15, height = 0, alpha = 0.3, size = 1.5
-  ) +
-  geom_line(
+pd <- position_dodge(width = 0.2) # used to shift groups so they are not overlapping
+
+p_longitudinal2 <- ggplot() +
+    geom_line(
     data = em_df_split,
     aes(x = DateType, y = emmean, color = Treatment, group = Treatment),
-    linewidth = 1
+    linewidth = 1,
+    position = pd
   ) +
   geom_point(
     data = em_df_split,
     aes(x = DateType, y = emmean, color = Treatment),
-    size = 3
+    size = 3,
+    position = pd
   ) +
   geom_errorbar(
     data = em_df_split,
     aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
-    width = 0.1, linewidth = 0.7
+    width = 0.3, # changes width of t bars 
+    linewidth = 0.7, # changes width of the line
+    position = pd
   ) +
-  coord_cartesian(ylim = c(-275, 125)) +
   scale_color_manual(values = primary_colors) +
-   facet_wrap(~ Treatment, ncol = 1) +
-  labs(x = "DateType", y = "Hypo TD (Degree Hours)") +
+  labs(x = "Experiment Day", y = "NTD (Degree Hours) EMM", color = "Primary Treatment",
+       fill = "Primary Treatment") +
   theme_bw() +
   theme(
-    legend.position = "none",
+    legend.position = "bottom",
+    legend.direction = "horizontal",
     panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
-  )
-print(p_longitudinal)
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12, color = "black"),
+    strip.text = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 12, face = "bold")  )
+print(p_longitudinal2)
 
 ggsave(
-  filename = "primary_longitudianl_plot.png", 
-  plot = p_longitudinal, 
-  width = 8,  # Narrower width (inches)
-  height = 10,  # Much taller height (inches)
+  filename = "primary_longitudianl2_plot.png", 
+  plot = p_longitudinal2, 
+  width = 7,  # Make narrower (inches)
+  height = 6,  # Make taller  (inches)
   dpi = 300)
 ```
+
 
 ```{r}
 p_bottom2 <- ggplot() +
@@ -532,12 +448,12 @@ p_bottom2 <- ggplot() +
    geom_signif(data = prim_sig_bars,
     aes(xmin = Left, 
       xmax = Right, 
-      annotations = annotation, 
+      annotations = p.value2, 
       y_position = y_position),
     manual = TRUE,
-    tip_length = 0.04,
-    textsize = 3,
-    vjust = -0.6) +
+    tip_length = 0.02,
+    textsize = 5,
+    vjust = -0.1) +
   geom_signif(data = comparison_bars_primary,
     aes(xmin = Left, 
       xmax = Right, 
@@ -545,18 +461,21 @@ p_bottom2 <- ggplot() +
       y_position = y_position),
     manual = TRUE,
     tip_length = -0.05,
-    textsize = 3,
-    vjust = -0.6) +
-    coord_cartesian(ylim = c(-275, 125)) +
+    textsize = 16,
+    vjust = -0.3) +
+    coord_cartesian(ylim = c(-250, 135)) +
   scale_color_manual(values = primary_colors) +
   scale_fill_manual(values = primary_colors) +
-  facet_wrap(~ DateType, ncol = 2) + 
-  labs(x = "Primary Treatment", y = NULL, color = "Primary Treatment") +
+  facet_wrap(~ DateType, ncol = 3) + 
+  labs(x = "Primary Treatment", y = "NTD (Degree Hours) EMM", color = "Primary Treatment") +
   theme_bw() +
   theme(
     legend.position = "none",
     panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12, color = "black"),
+    strip.text = element_text(size = 14, face = "bold")
   )
 print(p_bottom2)
 
@@ -564,7 +483,7 @@ ggsave(
   filename = "primary_bottom_plot.png", 
   plot = p_bottom2, 
   width = 8,  # Narrower width (inches)
-  height = 10,  # Much taller height (inches)
+  height = 7,  # Much taller height (inches)
   dpi = 300)
 ```
 
@@ -797,7 +716,7 @@ ggsave(
 ### Hypo Longitudinal Primary
 
 ```{r}
-p_hypo_long_mixed <- lmerTest::lmer(HypoAUC ~ DateType + Weight + Primary_Treatment + (1 | Group / Bat_ID),  data = Primary_Results)
+p_hypo_long_mixed <- lmerTest::lmer(HypoAUC ~ DateType * Primary_Treatment + Weight + (1 | Group / Bat_ID),  data = Primary_Results)
 
 # Check the summary
 summary(p_hypo_long_mixed)
@@ -1110,7 +1029,7 @@ ggsave(
 ### Hyper Longitudinal Primary
 
 ```{r}
-p_hyper_long_mixed <- lmerTest::lmer(HyperAUC ~ DateType + Weight + Primary_Treatment + (1 | Group / Bat_ID),  data = Primary_Results)
+p_hyper_long_mixed <- lmerTest::lmer(HyperAUC ~ DateType  * Primary_Treatment + Weight + (1 | Group / Bat_ID),  data = Primary_Results)
 
 # Check the summary
 summary(p_hyper_long_mixed)
@@ -1515,7 +1434,7 @@ ggsave(
 ### Longitudinal Secondary
 
 ```{r}
-s_long_mixed <- lmerTest::lmer(Total_AUC ~ DateType + Weight + Treatment + (1 | Group / Bat_ID),  data = Secondary_Results_filtered)
+s_long_mixed <- lmerTest::lmer(Total_AUC ~ DateType * Treatment + Weight + (1 | Group / Bat_ID),  data = Secondary_Results_filtered)
 
 # Check the summary
 summary(s_long_mixed)
@@ -1843,7 +1762,7 @@ ggsave(
 ### Longitudinal Hypo Secondary
 
 ```{r}
-s_long_hypo_mixed <- lmerTest::lmer(HypoAUC ~ DateType + Weight + Treatment + (1 | Group / Bat_ID),  data = Secondary_Results_filtered)
+s_long_hypo_mixed <- lmerTest::lmer(HypoAUC ~ DateType * Treatment + Weight + (1 | Group / Bat_ID),  data = Secondary_Results_filtered)
 
 # Check the summary
 summary(s_long_hypo_mixed)
@@ -2140,7 +2059,7 @@ ggsave(
 ### Longitudinal Hyper Secondary
 
 ```{r}
-s_long_hyper_mixed <- lmerTest::lmer(HyperAUC ~ DateType + Weight + Treatment + (1 | Group / Bat_ID),  data = Secondary_Results_filtered)
+s_long_hyper_mixed <- lmerTest::lmer(HyperAUC ~ DateType  * Treatment + Weight + (1 | Group / Bat_ID),  data = Secondary_Results_filtered)
 
 # Check the summary
 summary(s_long_hyper_mixed)
@@ -2206,189 +2125,6 @@ ggsave(
   width = 8,  # Narrower width (inches)
   height = 10,  # Much taller height (inches)
   dpi = 300)
-```
-
-## Longitudinal Models
-
-Okay, for these models I need to keep bats that have data from both D0 and D21
-```{r}
-D0 <- Analysis_results |> 
-  filter(ExperimentDay == "D0") |> 
-  rename(AUC_D0 = "Total_AUC",
-         HyperD0 = "HyperAUC",
-         HypoD0 = "HypoAUC") |> 
-  select(Bat_ID, AUC_D0, Treatment, Group, HyperD0, HypoD0)
-D1 <- Analysis_results |> 
-  filter(ExperimentDay == "D1") |> 
-  rename(AUC_D1 = "Total_AUC",
-         HyperD1 = "HyperAUC",
-         HypoD1 = "HypoAUC") |> 
-  select(Bat_ID, AUC_D1, Treatment, Group, HyperD1, HypoD1)
-D2 <- Analysis_results |> 
-  filter(ExperimentDay == "D2") |> 
-  rename(AUC_D2 = "Total_AUC",
-         HyperD2 = "HyperAUC",
-         HypoD2 = "HypoAUC") |> 
-  select(Bat_ID, AUC_D2, Treatment, Group, HyperD2, HypoD2)
-D3 <- Analysis_results |> 
-  filter(ExperimentDay == "D3") |> 
-  rename(AUC_D3 = "Total_AUC",
-         HyperD3 = "HyperAUC",
-         HypoD3 = "HypoAUC") |> 
-  select(Bat_ID, AUC_D3, Treatment, Group, HyperD3, HypoD3)
-D21 <- Analysis_results |> 
-  filter(ExperimentDay == "D21") |> 
-  rename(AUC_D21 = "Total_AUC",
-         HyperD21 = "HyperAUC",
-         HypoD21 = "HypoAUC") |> 
-  select(Bat_ID, AUC_D21, Treatment, Group, HyperD21, HypoD21)
-D22 <- Analysis_results |> 
-  filter(ExperimentDay == "D22") |> 
-  rename(AUC_D22 = "Total_AUC",
-         HyperD22 = "HyperAUC",
-         HypoD22 = "HypoAUC") |> 
-  select(Bat_ID, AUC_D22, Treatment, Group, HyperD22, HypoD22)
-D23 <- Analysis_results |> 
-  filter(ExperimentDay == "D23") |> 
-  rename(AUC_D23 = "Total_AUC",
-         HyperD23 = "HyperAUC",
-         HypoD23 = "HypoAUC") |> 
-  select(Bat_ID, AUC_D23, Treatment, Group, HyperD23, HypoD23)
-D24 <- Analysis_results |> 
-  filter(ExperimentDay == "D24") |> 
-  rename(AUC_D24 = "Total_AUC" ,
-         HyperD24 = "HyperAUC",
-         HypoD24 = "HypoAUC") |> 
-  select(Bat_ID, AUC_D24, Treatment, Group, HyperD24,HypoD24)
-Basal_TC <- Analysis_results |> 
-  filter(DateType == "Basal TC") |> 
-  rename(AUC_BTC = "Total_AUC",
-         Hyper_BTC = "HyperAUC",
-         Hypo_BTC = "HypoAUC") |> 
-  select(Bat_ID, AUC_BTC, Treatment, Group, Hyper_BTC, Hypo_BTC)
-Basal_TC_1 <- Analysis_results |> 
-  filter(DateType == "Basal TC + 1") |> 
-  rename(AUC_BTC_1 = "Total_AUC",
-         Hyper_BTC_1 = "HyperAUC",
-         Hypo_BTC_1 = "HypoAUC") |> 
-  select(Bat_ID, AUC_BTC_1, Treatment, Group, Hyper_BTC_1, Hypo_BTC_1)
-```
-
-** yeah I'm tired of this.... So since my current dataset is wide and a bat only has one row of data, it is not working as a random effect. 
-```{r}
-Full_1 <- inner_join(D0, D21, join_by(Bat_ID)) |> 
-  inner_join(Basal_TC, join_by(Bat_ID))
-
-# TC_bats_full <- lmer(AUC_D21 ~ Treatment + AUC_BTC + AUC_D0 + (1 | Bat_ID), 
-#                      data = Full_1)
-```
-Okay, I talked to Ken and because I can't use Bat_ID as random effect I will try using treatment. However, I don't really want to 'ignore' treatment. But I'll run it anyways. 
-
-```{r}
-TC_bats_full_2 <- lmerTest::lmer(AUC_D21 ~ AUC_BTC + AUC_D0 + (1 | Treatment), 
-                      data = Full_1)
-
-summary(TC_bats_full_2)
-```
-Okay so this is similar to my secondary results that showed groups that received the same treatment at the secondary did not have a different thermal response at the secondary despite having different treatments at the primary. I am going to run this as just a glm and see what i get
-
-```{r}
-TC_bats_glm <- glm(AUC_D21 ~ Treatment + AUC_BTC + AUC_D0, 
-                      data = Full_1)
-summary(TC_bats_glm)
-```
-Again, this makes sense. CP+S and CS at the secondary is significanlty different than CP. But there is no correlation found between NTD on day 21 and D0 or BTC. The last thing I am going to do is just look at all my bats and only D0 vs D21. 
-
-```{r}
-Full_2 <- inner_join(D0, D21, join_by(Bat_ID)) |> 
-  select(! Treatment.y) |> 
-  select(! Group.y) |> 
-  rename(Treatment = "Treatment.x",
-         Group = "Group.x")
-
-All_bats_glm <- glm(AUC_D21 ~ Treatment + AUC_D0, 
-                      data = Full_2)
-
-summary(All_bats_glm)
-```
-As suspected no correlation even when including bats that never underwent a thermal challenge.
-
-### Primary vs 1, 2, 3
-
-Okay, now I am going to run models to see if primary effects days 1, 2, and 3. 
-
-```{r}
-Primary_days <- inner_join(D0, D1, join_by(Bat_ID)) |> 
-  inner_join(D2, join_by(Bat_ID)) |> 
-  inner_join(D3, join_by(Bat_ID)) |> 
-  select(Bat_ID, AUC_D0, AUC_D1, AUC_D2, AUC_D3, Treatment.x, Group.x, HyperD0, HyperD1, HyperD2, HyperD3, HypoD0, HypoD1, HypoD2, HypoD3) |> 
-  rename(Treatment = "Treatment.x",
-         Group = "Group.x")
-
-Primary_long_glm_1 <- glm(AUC_D1 ~ Treatment + AUC_D0, 
-                      data = Primary_days)
-summary(Primary_long_glm_1)
-
-Primary_long_glm_2 <- glm(AUC_D2 ~ Treatment + AUC_D0, 
-                      data = Primary_days)
-summary(Primary_long_glm_2)
-
-Primary_long_glm_3 <- glm(AUC_D3 ~ Treatment + AUC_D0, 
-                      data = Primary_days)
-summary(Primary_long_glm_3)
-```
-Okay so these results shows that AUC on day 0 is correlated with auc on d1 but not d2 or d3. Since i saw significance in hyper auc on d1, 2 and 3, i want to run this same model looking at hyper and hypo. 
-
-```{r}
-interact_plot(Primary_long_glm_1, pred = AUC_D0, modx = Treatment, interval = TRUE, legend.main = "Treatment Group", plot.points = TRUE) +
-  labs(x = "Primary AUC", y = "Primary+1 AUC") +
-  theme_bw()
-```
-
-
-#### Hyper and hypo 
-
-```{r}
-HyperD1 <- glm(HyperD1 ~ Treatment + AUC_D0, 
-                      data = Primary_days)
-summary(HyperD1)
-
-HyperD2 <- glm(HyperD2 ~ Treatment + AUC_D0, 
-                      data = Primary_days)
-summary(HyperD2)
-
-HyperD3 <- glm(HyperD3 ~ Treatment + AUC_D0, 
-                      data = Primary_days)
-summary(HyperD3)
-```
-
-Similar to AUC, only hyper AUC on D1 was correlated with hyper AUC on D0. Not sure this is the best way to run this though....
-
-
-### Secondary +1, 2, 3
-```{r}
-Secondary_Days <- inner_join(D21, D22, join_by(Bat_ID)) |> 
-  inner_join(D23, join_by(Bat_ID)) |> 
-  inner_join(D24, join_by(Bat_ID)) 
-
-Secondary_Days <- Secondary_Days |> 
-  select(Bat_ID, AUC_D21, AUC_D22, AUC_D23, AUC_D24, Treatment.x, Group.x) |> 
- rename(Group = "Group.x", 
-        Treatment = "Treatment.x")
-```
-
-```{r}
-Secondary_long_glm_1 <- glm(AUC_D22 ~ Treatment + AUC_D21, 
-                      data = Secondary_Days)
-summary(Secondary_long_glm_1)
-
-Secondary_long_glm_2 <- glm(AUC_D23 ~ Treatment + AUC_D21, 
-                      data = Secondary_Days)
-summary(Secondary_long_glm_2)
-
-Secondary_long_glm_3 <- glm(AUC_D23 ~ Treatment + AUC_D21, 
-                      data = Secondary_Days)
-summary(Secondary_long_glm_3)
 ```
 
 ### Basal vs Primary Model
@@ -2515,7 +2251,8 @@ Metadata2 <- Metadata |>
 Results <- read.delim("EPFU2025FullResults.tsv", # read in results
      na = "NA") 
 
-Results <- Results %>%
+Results <- Results %>% 
+  filter(valid_counts >= 137) |> 
   group_by(Treatment) %>%
   mutate(Treatment_Tnorm = mean(Tnorm, na.rm = TRUE)) |> 
   ungroup()
@@ -2540,7 +2277,7 @@ ggetho(
   none_behavr, 
   aes(y = Temperature, colour = Treatment, fill = Treatment), 
   time_wrap = 86400,
-  time_offset = 50400 # 14:00 offset in seconds (14 * 3600)
+  time_offset = 50400 # 14:00 offset
 ) +
   geom_hline(
     aes(yintercept = Tnorm), 
@@ -2548,27 +2285,26 @@ ggetho(
     color = "black", 
     linewidth = 0.8
   ) +
-  # 95% Bootstrapped CI
-  stat_pop_etho() +
+  stat_pop_etho(method = mean_cl_boot) + 
   stat_ld_annotations(
     period = 86400,
-    phase = 39600,
+    phase = 32400,
     l_duration = 43200, 
     ld_colours = c("black", "white")
   ) +
   facet_grid(Treatment ~ .) +
-  # Format x-axis starting at 14:00 (50400s) through 14:00 next day (136800s)
   scale_x_continuous(
-    name = "Time of Day",
-    breaks = seq(50400, 50400 + 86400, by = 7200),
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%H:%M"),
+    name = "Time (Hours)",
+    breaks = seq(-50400, 86400 - 50400, by = 7200),
+    labels = function(x) (x + 50400) / 3600,
     expand = c(0, 0)
   ) +
   scale_colour_manual(values = treatmentcolors) +
   scale_fill_manual(values = treatmentcolors) +
   theme_bw() +
   theme(
-    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+    legend.position = "none",
+    axis.text.x = element_text(angle = 0, vjust = 1),
     text = element_text(size = 18),
     panel.grid = element_blank()
   ) +
@@ -2576,76 +2312,73 @@ ggetho(
 
 print(EPFU_none)
 
-ggetho(
-  none_behavr, 
-  aes(y = Temperature, colour = Treatment, fill = Treatment), 
-  time_wrap = 86400,
-  time_offset = 50400 # X-axis starts at 14:00
-) +
-  geom_hline(
-    aes(yintercept = Tnorm), 
-    linetype = "dashed", 
-    color = "black", 
-    linewidth = 0.8
-  ) +
-  # 95% Bootstrapped CI
-  stat_pop_etho() +
-  stat_ld_annotations(
-    period = 86400,
-    phase = 32400,      # Offset from 14:00 start to 23:00 light onset (9 hours = 32400s)
-    l_duration = 43200, # Light duration = 12 hours
-    ld_colours = c("black", "white")
-  ) +
-  facet_grid(Treatment ~ .) +
-  scale_x_continuous(
-    name = "Time of Day",
-    breaks = seq(50400, 50400 + 86400, by = 7200),
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%H:%M"),
-    expand = c(0, 0)
-  ) +
-  scale_colour_manual(values = treatmentcolors) +
-  scale_fill_manual(values = treatmentcolors) +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
-    text = element_text(size = 18),
-    panel.grid = element_blank()
-  ) +
-  labs(y = "Temp (°C)") -> EPFU_none
 
-
-ggsave("EPFU_none.jpeg", plot = EPFU_none, device = jpeg(), width = 10, height = 6.67)
+ggsave("EPFU_none.jpeg", plot = EPFU_none, device = jpeg(), width = 7, height = 7)
 ```
 
 
 ```{r}
-none_summary_table <- None_data %>%
-  group_by(Treatment) |> 
+none_summary <- None_data %>%
+  group_by(Bat_ID, DateType, Treatment) |> 
   summarise(
     Minimum = min(Temperature, na.rm = TRUE),
     Maximum = max(Temperature, na.rm = TRUE),
     Average = mean(Temperature, na.rm = TRUE)) |> 
-  ungroup()
+  ungroup() 
+ 
+
+none_summary2 <- none_summary |> 
+  group_by(DateType, Treatment) |> 
+  summarise(
+    AVGMinimum = mean(Minimum , na.rm = TRUE),
+    AVGMaximum = mean(Maximum, na.rm = TRUE),
+    AVGAverage = mean(Average, na.rm = TRUE),
+    sd_min_temp  = sd(Minimum, na.rm = TRUE),
+    sd_max_temp  = sd(Maximum, na.rm = TRUE),
+    sd_avg_temp  = sd(Average, na.rm = TRUE),
+    n_bats       = n(),) |> 
+  ungroup() 
 ```
 
 
 ### Basal Traces
 
 ```{r}
-Basal_TC_Traces <- read.delim("EPFU2025Basal_TC.tsv", # read in results
+Basal_TC_Traces <- read.delim("EPFU2025FullBasal.tsv", # read in results
      na = "NA")
 
 Basal_TC_Names <- unique(Basal_TC_Traces$Bat_ID)
   
  Basal_TC_Traces <- Basal_TC_Traces |> 
   mutate(id = Bat_ID) |> 
-  mutate(t = NumberDate) |> 
+  mutate(t = NumberDate_shifted) |> 
   mutate(id = as.character(id)) 
  
 Basal_Metadata <- Metadata2 |> 
   filter(Bat_ID %in% Basal_TC_Names) |> 
     mutate(id = Bat_ID) |> 
     mutate(id = as.character(id)) 
+
+BTC_summary <- Basal_TC_Traces %>%
+  group_by(Bat_ID, DateType, Treatment) |> 
+  summarise(
+    Minimum = min(Temperature, na.rm = TRUE),
+    Maximum = max(Temperature, na.rm = TRUE),
+    Average = mean(Temperature, na.rm = TRUE)) |> 
+  ungroup() 
+ 
+
+BTC_summary2 <- BTC_summary |> 
+  group_by(DateType, Treatment) |> 
+  summarise(
+    AVGMinimum = mean(Minimum , na.rm = TRUE),
+    AVGMaximum = mean(Maximum, na.rm = TRUE),
+    AVGAverage = mean(Average, na.rm = TRUE),
+    sd_min_temp  = sd(Minimum, na.rm = TRUE),
+    sd_max_temp  = sd(Maximum, na.rm = TRUE),
+    sd_avg_temp  = sd(Average, na.rm = TRUE),
+    n_bats       = n(),) |> 
+  ungroup() 
 ```
 
 
@@ -2653,20 +2386,30 @@ Basal_Metadata <- Metadata2 |>
 Basal_met <- data.table::data.table(Basal_Metadata, key = "id")
 Basal_Traces <- data.table::data.table(Basal_TC_Traces, key = "id")
 
- basal_behavr <- behavr(Basal_Traces, Basal_met)
+basal_behavr <- behavr(Basal_Traces, Basal_met)
 ```
 
 ```{r}
 t_start <- min(basal_behavr$t)
 t_end   <- max(basal_behavr$t)
 
+shade_start <- 1757002201  
+shade_end   <- 1757079001
+
 basal_behavr |>
   ggetho(aes(x = t, y = Temperature, colour = Treatment, fill = Treatment)) +
+  annotate("rect", 
+    xmin = shade_start, 
+    xmax = shade_end, 
+    ymin = -Inf, 
+    ymax = Inf,
+    fill = "grey90", 
+    alpha = 0.5 ) +
   geom_hline(aes(yintercept = Tnorm), 
              linetype = "dashed", 
              color = "black", 
              linewidth = 0.8) +
- stat_pop_etho() +
+ stat_pop_etho(method = mean_cl_boot) +
   stat_ld_annotations(
     period = 86400,
     phase = 39600,
@@ -2675,7 +2418,7 @@ basal_behavr |>
   ) +
   facet_grid(Treatment ~ .) +
   scale_x_continuous(
-    name = "Time in Thermal Challenge (hours)",
+    name = "Time (hours)",
     # Breaks MUST start at min(t) in the dataset!
     breaks = seq(t_start, t_end, by = 7200),
     # Labels subtract start time and convert seconds to hours
@@ -2691,32 +2434,68 @@ basal_behavr |>
     text = element_text(size = 18), 
     panel.grid = element_blank()
   ) +
-  labs(y = "Temp (C)") -> EPFU_Basal
+  labs(y = "Temp (°C)") -> EPFU_Basal
+
 
 print(EPFU_Basal)
 
 ggsave("EPFU_Basal.jpeg", plot = EPFU_Basal, device = jpeg(), width = 10, height = 6.67)
 ```
 
-
-##Primary Temp
+## Primary Traces
 
 ```{r}
+Primary_Results_Full <- Results |> 
+  filter(DateType %in% c("Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3"))
 
-Primary_Results <- Primary_Results |> 
+Primary_Results_Full <- Primary_Results_Full |> 
   mutate(id = Bat_ID) |> 
   mutate(t = NumberDate) |> 
   mutate(id = as.character(id))
 
+Primary_Results_Full <- Primary_Results_Full |> 
+  mutate(Primary_Treatment = case_when(Treatment %in% c("CP+S" , "CP") ~  "Primary_Cold",
+         Treatment %in% c("CS" , "NoCo") ~ "Primary_NoCo",
+         TRUE ~ "SHAM"))
+
  Primary_met <- data.table::data.table(Metadata2, key = "id")
- Primary_results2 <- data.table::data.table(Primary_Results, key = "id")
+ Primary_results2 <- data.table::data.table(Primary_Results_Full, key = "id")
 
  primary_behavr <- behavr(Primary_results2, Primary_met) 
  summary(primary_behavr)
  
  glimpse(primary_behavr)
+ 
+ primary_summary <- Primary_Results_Full %>%
+  group_by(Bat_ID, DateType, Primary_Treatment) |> 
+  summarise(
+    Minimum = min(Temperature, na.rm = TRUE),
+    Maximum = max(Temperature, na.rm = TRUE),
+    Average = mean(Temperature, na.rm = TRUE)) |> 
+  ungroup() 
+ 
+
+summary_primary <- primary_summary |> 
+  group_by(DateType, Primary_Treatment) |> 
+  summarise(
+    AVGMinimum = mean(Minimum , na.rm = TRUE),
+    AVGMaximum = mean(Maximum, na.rm = TRUE),
+    AVGAverage = mean(Average, na.rm = TRUE),
+    sd_min_temp  = sd(Minimum, na.rm = TRUE),
+    sd_max_temp  = sd(Maximum, na.rm = TRUE),
+    sd_avg_temp  = sd(Average, na.rm = TRUE),
+    n_bats       = n(),) |> 
+  ungroup() 
+
+write.csv(summary_primary, "EPFU2025_primary_summary.csv")
 
 
+
+Primary_Results_Full |> 
+  group_by(Primary_Treatment) |> 
+  summarise(
+    primarygroup_tnorm = mean(Temp_norm),
+    sd_tnorm  = sd(Temp_norm))
 ```
 
 ### Primary Behavr 
@@ -2725,6 +2504,8 @@ Primary_Results <- Primary_Results |>
 shaded <- data.frame(Treatment = c("CP", "CP+S"), xmin = 1757344201 , 
   xmax = 1757422801,#adds shaded regions for both the basal and primary thermal #challenges
                      label = c("Primary TC"))
+
+day_ticks <- primary_behavr[!duplicated(primary_behavr$ExperimentDay), ]
 
 primary_behavr |>
   ggetho(aes(x = t, y = Temperature, colour = Treatment, fill = Treatment)) +
@@ -2740,7 +2521,7 @@ primary_behavr |>
              linetype = "dashed", 
              linewidth = 0.8) +
              
-  stat_pop_etho() +
+  stat_pop_etho(method = mean_cl_boot) +
   stat_ld_annotations(
     period = 86400,
     phase = 39600,
@@ -2748,28 +2529,32 @@ primary_behavr |>
     ld_colours = c("black", "white")) +
   facet_grid(Treatment ~ .) +
   scale_x_continuous(
-    name = "Date/Time",
-    breaks = seq(1757253601, to = max(primary_behavr$t), by = 86400), 
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%H:%M"),
+    name = "Experiment Day",
+    breaks = day_ticks$t,             
+    labels = day_ticks$DateType,
     expand = c(0,0) ) +
   # 3. Use your original treatmentcolors without the "Tnorm" entry
   scale_colour_manual(values = treatmentcolors) +
   scale_fill_manual(values = treatmentcolors) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+  theme(legend.position = "none",
+    axis.text.x = element_text(angle = -25, vjust = 1, hjust = 0),
     text = element_text(size = 16),
     panel.grid = element_blank()) +
-  labs(y = "Temp (C)", colour = "Treatment", fill = "Treatment") -> EPFU_Primary
+  labs(y = "Skin Temperature (°C)", colour = "Treatment", fill = "Treatment") -> EPFU_Primary
 
 print(EPFU_Primary)
+# dropped rows from figure have NAs
  
 ggsave("EPFU_Primary.jpeg", plot = EPFU_Primary, device = jpeg(), width = 10, height = 6.67)
 
 ```
 
-## Behavr Analysis
+## Secondary Traces
 
 ```{r}
+Secondary_Results <- Results |> 
+  filter(DateType %in% c("Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3"))
 
 Secondary_Results <- Secondary_Results |> 
   mutate(id = Bat_ID) |> 
@@ -2781,6 +2566,29 @@ Secondary_Results <- Secondary_Results |>
 
  secondary_behavr <- behavr(Secondary_results2, Secondary_met)
  summary(secondary_behavr)
+ 
+ secondary_summary <- Secondary_Results %>%
+  group_by(Bat_ID, DateType, Treatment) |> 
+  summarise(
+    Minimum = min(Temperature, na.rm = TRUE),
+    Maximum = max(Temperature, na.rm = TRUE),
+    Average = mean(Temperature, na.rm = TRUE)) |> 
+  ungroup() 
+ 
+
+summary_secondary <- secondary_summary |> 
+  group_by(DateType, Treatment) |> 
+  summarise(
+    AVGMinimum = mean(Minimum , na.rm = TRUE),
+    AVGMaximum = mean(Maximum, na.rm = TRUE),
+    AVGAverage = mean(Average, na.rm = TRUE),
+    sd_min_temp  = sd(Minimum, na.rm = TRUE),
+    sd_max_temp  = sd(Maximum, na.rm = TRUE),
+    sd_avg_temp  = sd(Average, na.rm = TRUE),
+    n_bats       = n(),) |> 
+  ungroup() 
+
+write.csv(summary_secondary, "EPFU2025_secondary_summary.csv")
 ```
 
 ```{r}
@@ -2791,7 +2599,7 @@ secondary_etho  <- ggetho(secondary_behavr, aes(x=t, y=id, z=Temperature)) + sta
     labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
     expand = c(0,0)) +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-  labs(fill = "Temp (C)",
+  labs(fill = "Temp (°C)",
        y = "Bat ID")
 
 ggsave("EPFU_Sec_Etho.jpeg", plot = secondary_etho, device = jpeg(), width = 12, height = 6.67)
@@ -2801,11 +2609,12 @@ ggsave("EPFU_Sec_Etho.jpeg", plot = secondary_etho, device = jpeg(), width = 12,
 ggetho(secondary_behavr, aes(z = Temperature, y = Treatment)) + stat_tile_etho()
 ```
 
-```{r, warning=FALSE}
-
+```{r}
 shaded2 <- data.frame(Treatment = c("CS", "CP+S"), xmin = 1759155601 , 
   xmax = 1759234201,#adds shaded regions for both the basal and primary thermal #challenges
   label = c("Secondary TC"))
+
+s_day_ticks <- secondary_behavr[!duplicated(secondary_behavr$ExperimentDay), ]
 
 secondary_behavr |>
   ggetho(aes(x = t, y = Temperature, colour = Treatment)) +
@@ -2816,7 +2625,7 @@ secondary_behavr |>
   geom_rect(data = shaded2, 
             aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
             fill = "grey70", alpha = 0.5, inherit.aes = FALSE) +
-  stat_pop_etho() +
+  stat_pop_etho(method = mean_cl_boot) +
   stat_ld_annotations(
     period = 86400,
     phase = 39600,
@@ -2824,150 +2633,19 @@ secondary_behavr |>
     ld_colours = c("black", "white")) +
   facet_grid(Treatment ~ .) +
   scale_x_continuous(
-    name = "Date/Time",
-    # Start at the minimum time in your data, end at max, move by 2 hours (7200s)
-    breaks = seq(1758895201, to = max(secondary_behavr$t), by = 86400), 
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%H:%M"),
+    name = "Experiment Day",
+    breaks = s_day_ticks$t,             
+    labels = s_day_ticks$DateType,
     expand = c(0,0)) +
   scale_colour_manual(values = treatmentcolors) +
   scale_fill_manual(values = treatmentcolors) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  theme(legend.position = "null",
+    axis.text.x = element_text(angle = -25, vjust = 1, hjust = 0)) +
   theme(text = element_text(size = 16), panel.grid = element_blank())+
-  labs(y = "Temp (C)") -> EPFU_Secondary
+  labs(y = "Skin Temperature (°C)") -> EPFU_Secondary
 
 print(EPFU_Secondary)
  
 ggsave("EPFU_Secondary.jpeg", plot = EPFU_Secondary, device = jpeg(), width = 10, height = 6.67)
-```
-
-```{r, warning=FALSE}
-None_test <- Results |> 
-  filter(DateType == "None")
-
-None_test <- None_test |> 
-  mutate(id = Bat_ID) |> 
-  mutate(t = NumberDate) |> 
-  mutate(id = as.character(id))
-
- none_met <- data.table::data.table(Metadata2, key = "id")
- None_test2 <- data.table::data.table(None_test, key = "id")
-
- none_behavr <- behavr(None_test2, none_met)
- summary(none_behavr)
-
-ggetho(none_behavr, aes(y= Temperature, colour= Treatment), time_wrap = 86400) +
-      stat_pop_etho() +
-      stat_ld_annotations() +
-     # facet_grid(id ~ .) +
-      scale_y_continuous(name= "Temperature")
-```
-
-
-```{r}
-ggetho(secondary_behavr, aes(y= Temperature, colour=Treatment), time_wrap = 86400) +
-      stat_pop_etho() +
-      stat_ld_annotations() +
-      facet_grid(Treatment ~ .) +
-      scale_y_continuous(name= "Temperature")
-ggetho(secondary_behavr, aes(y= Temperature, colour=Treatment), time_wrap = 86400) +
-      stat_pop_etho() +
-      stat_ld_annotations() +
-      scale_y_continuous(name= "Temperature")
-
-Secondary_Trimmed <- Secondary_results2 |> 
-  filter(NumberDate <= "1749254400") |> 
-  mutate(id = Bat_ID) |> 
-  mutate(t = NumberDate) |> 
-  mutate(id = as.character(id))
-
-
- Secondary_results3 <- data.table::data.table(Secondary_Trimmed, key = "id")
-
- secondary_behavr2 <- behavr(Secondary_results3, Secondary_met2)
- summary(secondary_behavr)
-
- 
- ggetho(secondary_behavr, aes(y= Temperature, colour=Treatment), time_wrap = 86400) +
-      stat_pop_etho() +
-      stat_ld_annotations() +
-      scale_y_continuous(name= "Temperature")
-```
-
-```{r Sham, warning=FALSE}
-
-met_sham <- Secondary_met2 %>%
-  filter(Treatment == "SHAM")
-sham_results <- Secondary_results2 %>%
-  filter(id %in% met_sham$id)
-sham_behavr <- behavr(sham_results, met_sham)
-
-sham_behavr %>%
- ggetho(aes(x = t, y = Temperature, colour = id))+
-  stat_pop_etho() +
-  stat_ld_annotations(
-    period = 86400,
-    phase = 25200,
-    l_duration = 43200, 
-    ld_colours = c( "white", "black")) +
-  facet_grid(id ~ .) +
-    scale_x_continuous(
-    name = "Date/time",
-    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
-    expand = c(0,0)) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-```
-
-```{r eVLP_LPS, warning=FALSE}
-met_LPS <- Secondary_met2 %>%
-  filter(Treatment == "eVLP+LPS")
-LPS_results <- Secondary_results2 %>%
-  filter(id %in% met_LPS$id)
-LPS_behavr <- behavr(LPS_results, met_LPS)
-
-LPS_behavr %>%
- ggetho(aes(x = t, y = Temperature, colour = id))+
-  stat_pop_etho() +
-  stat_ld_annotations(
-    period = 86400,
-    phase = 25200,
-    l_duration = 43200, 
-    ld_colours = c( "white", "black")) +
-  facet_grid(id ~ .) +
-    scale_x_continuous(
-    name = "Date/time",
-    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
-    expand = c(0,0)) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-```
-
-```{r TC, warning=FALSE}
-met_TC <- Secondary_met2 %>%
-  filter(Treatment == "TC")
-TC_results <- Secondary_results2 %>%
-  filter(id %in% met_TC$id)
-TC_behavr <- behavr(TC_results, met_TC)
-
-TC_behavr %>%
- ggetho(aes(x = t, y = Temperature, colour = id))+
-  stat_pop_etho() +
-  stat_ld_annotations(
-    period = 86400,
-    phase = 25200,
-    l_duration = 43200, 
-    ld_colours = c( "white", "black")) +
-  facet_grid(id ~ .) +
-    scale_x_continuous(
-    name = "Date/time",
-    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
-    expand = c(0,0)) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-```
-
-```{r, warning=FALSE}
-ggetho(bat_behavr, aes(y=Temperature, colour=Treatment)) + 
-  stat_pop_etho()
 ```
