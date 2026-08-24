@@ -686,7 +686,7 @@ MOCO_deltat_sec <- ggplot(Post_sec_summary, aes(x = t_day, y = mean_DT, colour =
     axis.text.x = element_text(angle = 25, vjust = 0.8),
     text = element_text(size = 14),
     panel.grid = element_blank(),
-    strip.text.y = element_text(angle = 0)
+    strip.text.y = element_text(angle = -90)
   ) +
   labs(y = "Mean Delta T (°C)")
 
@@ -698,8 +698,7 @@ ggsave("MOCO_deltaT_sec.jpeg", plot = MOCO_deltat_sec, device = jpeg(), width = 
 
 ```{r}
 secondary_delta <- Secondary_Results |> 
-  filter(DateType %in% c("Baseline", "Secondary + 1", "Secondary + 2", "Secondary + 3"),
-         !Treatment == "Cold")
+  filter(DateType %in% c("Baseline", "Secondary + 1", "Secondary + 2", "Secondary + 3"))
 
 sec_delta <- secondary_delta %>%
   group_by(Facet_Group, DateType) |> 
