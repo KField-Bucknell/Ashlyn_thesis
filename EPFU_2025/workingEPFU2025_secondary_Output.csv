@@ -1,0 +1,31 @@
+,contrast,Reference,Comparison,Experiment Day,estimate,SE,df,t.ratio,p.value
+6,SvN_None,SHAM,NoCo,Baseline,60.09,20.54,20.12,2.93,0.05
+5,SvN_-1,SHAM,NoCo,Secondary - 1,-58.13,37.06,165.96,-1.57,0.51
+1,SvN_S,SHAM,NoCo,Secondary,-15.21,31.31,123.15,-0.49,0.89
+2,SvN_1,SHAM,NoCo,Secondary + 1,18.89,31.21,123.26,0.61,0.89
+3,SvN_2,SHAM,NoCo,Secondary + 2,12.98,31.33,123.12,0.41,0.89
+4,SvN_3,SHAM,NoCo,Secondary + 3,55.04,31.45,122.77,1.75,0.41
+12,NvCP_None,NoCo,CP,Baseline,-63.93,21.31,23.04,-3.00,0.05
+11,NvCP_-1,NoCo,CP,Secondary - 1,17.72,36.46,151.65,0.49,0.89
+7,NvCP_S,NoCo,CP,Secondary,6.03,32.83,125.31,0.18,0.95
+8,NvCP_1,NoCo,CP,Secondary + 1,-18.81,32.74,125.63,-0.57,0.89
+9,NvCP_2,NoCo,CP,Secondary + 2,3.81,32.89,125.06,0.12,0.97
+10,NvCP_3,NoCo,CP,Secondary + 3,-29.08,32.96,124.72,-0.88,0.81
+18,CPSvCS_None,CP+S,CS,Baseline,-16.44,16.97,20.69,-0.97,0.81
+17,CPSvCS_-1,CP+S,CS,Secondary - 1,38.08,37.44,187.81,1.02,0.81
+13,CPSvCS_S,CP+S,CS,Secondary,-34.20,28.58,125.65,-1.20,0.70
+14,CPSvCS_1,CP+S,CS,Secondary + 1,1.08,28.58,125.62,0.04,0.99
+15,CPSvCS_2,CP+S,CS,Secondary + 2,-21.41,28.73,125.36,-0.75,0.87
+16,CPSvCS_3,CP+S,CS,Secondary + 3,-8.84,28.72,125.41,-0.31,0.95
+24,CPvCPS_None,CP,CP+S,Baseline,15.89,17.16,22.46,0.93,0.81
+23,CPvCPS_-1,CP,CP+S,Secondary - 1,-38.38,32.01,152.76,-1.20,0.70
+19,CPvCPS_S,CP,CP+S,Secondary,-178.47,28.61,124.69,-6.24,9.52E-08
+20,CPvCPS_1,CP,CP+S,Secondary + 1,17.99,28.59,125.08,0.63,0.89
+21,CPvCPS_2,CP,CP+S,Secondary + 2,-6.78,28.58,125.70,-0.24,0.95
+22,CPvCPS_3,CP,CP+S,Secondary + 3,-6.09,28.58,125.62,-0.21,0.95
+30,NvCS_None,NoCo,CS,Baseline,-64.47,22.03,22.22,-2.93,0.05
+29,NvCS_-1,NoCo,CS,Secondary - 1,17.43,41.44,178.99,0.42,0.89
+25,NvCS_S,NoCo,CS,Secondary,-206.64,33.08,124.10,-6.25,9.52E-08
+26,NvCS_1,NoCo,CS,Secondary + 1,0.26,32.86,125.17,0.01,0.99
+27,NvCS_2,NoCo,CS,Secondary + 2,-24.38,33.31,122.77,-0.73,0.87
+28,NvCS_3,NoCo,CS,Secondary + 3,-44.01,33.45,121.91,-1.32,0.70

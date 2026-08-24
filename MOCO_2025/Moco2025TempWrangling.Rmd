@@ -326,7 +326,7 @@ left_trimmed <- temps_with_meta %>%
 
 # Filter to keep only records before removal date
 right_trimmed <- left_trimmed |> 
-  filter(NumberDate <= Removal_Date)
+  filter(NumberDate < Removal_Date)
 
 # Making a new data table with trimmed data 
 allbatresults2 <- right_trimmed |> 
@@ -884,15 +884,15 @@ Rivendell_Pre_Trim <- Rivendell_Pre |>
 Okay, now that's done.. I need to take these times and add them to the corresponding rows. I think what I am going to do is separate the boost from the primary results, because my primary result bats were all in an incubator at that time. 
 ```{r}
 Primary_results_working <- clean_results |> 
-  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) |> # results from primary immunization
-  filter(NumberDate <= "1748736000")
+  filter(Bat_ID %in% c("64.1", "68.1", "74.1")) # results from primary immunization
+
 
 Secondary_results_working <- clean_results |> 
   filter(!Bat_ID %in% c("64.1", "68.1", "74.1")) # results from secondary immunization
 
 # trim down the ambient data to the dates and time loggers were attached to the bats
 Ambient_primary_working <- Union_Ambient |> 
-  filter(NumberDate <= "1748736000", 
+  filter(NumberDate <= "1749673200", 
          NumberDate >= "1747736400")
 
 # now I need to filter out times when the bats were in the incubators instead of outside with ambient temperature
@@ -1095,20 +1095,91 @@ I think I have all the data wrangling down so I am going to export some tsv with
 ```{r}
 Secondary_Met2$Treatment[Secondary_Met2$Treatment == "TC"] <- "Cold"
 Secondary_Met2$Treatment[Secondary_Met2$Treatment == "eVLP+LPS"] <- "NoCo"
+Secondary_Met2$Treatment[Secondary_Met2$Treatment == "SHAM"] <- "Sham"
 
 Primary_Met$Treatment[Primary_Met$Treatment == "TC"] <- "Cold"
 Primary_Met$Treatment[Primary_Met$Treatment == "eVLP+LPS"] <- "NoCo"
+
+Primary_Met$Bat_ID[Primary_Met$Bat_ID == "64.1"] <- "64"
+Primary_Met$Bat_ID[Primary_Met$Bat_ID == "68.1"] <- "68"
+Primary_Met$Bat_ID[Primary_Met$Bat_ID == "74.1"] <- "74"
 
 ```
 
 ## Experiment Day Labeling
 
+```{r}
+Final_Primary <- Final_Primary |> 
+  mutate(DateType = "")
 
+Gp3_d0_anchor <- ymd_hms("2025-05-26 00:00:00") 
+
+Final_Primary <- Final_Primary |> 
+  mutate(Days_From_Anchor = as.numeric(difftime(DateTime, Gp3_d0_anchor, units = "days")),
+    # 4. Use floor() so that Day 0 spans from Sept 9 2pm to Sept 10 1:59pm
+    Day_Number = floor(Days_From_Anchor),
+      # 5. Format it to look like "D0", "D1", "D-1", etc.
+    ExperimentDay = case_when(
+      Day_Number == 0  ~ "D0",
+      Day_Number > 0   ~ paste0("D", Day_Number),
+      Day_Number < 0   ~ paste0("D", Day_Number) # Automatically handles the negative sign (e.g., "D-1")
+    ))
+```
+
+```{r}
+Final_Primary <- Final_Primary|> 
+  mutate(DateType = case_when(
+     Day_Number == "-1" ~ "Primary - 1",
+        Day_Number == "0" ~ "Primary",
+        Day_Number == "1" ~ "Primary + 1",
+       Day_Number == "2" ~ "Primary + 2",
+        Day_Number == "3" ~ "Primary + 3",
+       Day_Number == "-3" ~ "Basal TC",
+        Day_Number == "-2" ~ "Basal TC 2",
+     Day_Number == "7" ~ "Bleed",
+     Day_Number == "14" ~ "Bleed",
+      Day_Number < 0 ~ "Pre",  
+      TRUE ~ "Baseline"))
+```
+
+```{r}
+Final_Secondary <- Final_Secondary |> 
+  mutate(DateType = "")
+
+Gp1_d0_anchor <- ymd_hms("2025-05-15 00:00:00") 
+
+Final_Secondary <- Final_Secondary |> 
+  mutate(Days_From_Anchor = as.numeric(difftime(DateTime, Gp1_d0_anchor, units = "days")),
+    # 4. Use floor() so that Day 0 spans from Sept 9 2pm to Sept 10 1:59pm
+    Day_Number = floor(Days_From_Anchor),
+      # 5. Format it to look like "D0", "D1", "D-1", etc.
+    ExperimentDay = case_when(
+      Day_Number == 0  ~ "D0",
+      Day_Number > 0   ~ paste0("D", Day_Number),
+      Day_Number < 0   ~ paste0("D", Day_Number) # Automatically handles the negative sign (e.g., "D-1")
+    ))
+
+Final_Secondary <- Final_Secondary|> 
+  mutate(DateType = case_when(
+     Day_Number == "20" ~ "Secondary - 1",
+        Day_Number == "21" ~ "Secondary",
+        Day_Number == "22" ~ "Secondary + 1",
+       Day_Number == "23" ~ "Secondary + 2",
+        Day_Number == "24" ~ "Secondary + 3",
+       Day_Number == "28" ~ "Bleed",
+      TRUE ~ "Baseline"))
+
+Final_Primary2 <- left_join(Final_Primary, Primary_Met, join_by(Bat_ID))
+Final_Secondary2 <- left_join(Final_Secondary, Secondary_Met2, join_by(Bat_ID))
+```
+
+
+## Exporting
 
 ```{r}
 write_tsv(Secondary_Met2, file = "MOCO2025Secondary_Met.tsv")
-write_tsv(Final_Primary, file = "MOCO2025PrimaryTemperature.tsv")
-write_tsv(Final_Secondary, file = "MOCO2025SecondaryTemperature.tsv")
+write_tsv(Final_Primary2, file = "MOCO2025PrimaryTemperature.tsv")
+write_tsv(Final_Secondary2, file = "MOCO2025SecondaryTemperature.tsv")
 write_tsv(Primary_Met, file = "MOCO2025Primary_Met.tsv")
 write_tsv(Ambient_primary_working, file = "MOCO2025Primary_Ambient.tsv")
 write_tsv(Secondary_Ambient, file = "MOCO2025Secondary_Ambient.tsv")

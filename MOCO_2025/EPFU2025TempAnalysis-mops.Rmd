@@ -1,5 +1,5 @@
 ---
-title: "EPFU 2025 Temperature Loggers Analysis"
+title: "MOCO 2025 Temperature Loggers Analysis"
 author: "Ashlyn Sak"
 date: "`r Sys.Date()`"
 output: github_document
@@ -50,59 +50,411 @@ conflicts_prefer(lubridate::days)
 
 Check to make sure that all of those packages are needed, once I am done.
 
-This code is going to be AUC models. In EPFU2025TempWrangling, I calibrated and trimmed the data as well as dropping any bad values. In EPFU2025TempGeneralModels, I ran models to see what types variables affected AUC so I know what I need to include in my models. Both weight and group had a significant affect on AUC so I want to be sure to correct for these differences.
-
 ## Metadata
 
 ```{r}
-Analysis_results <- read.delim("EPFU2025Analysis_Results.tsv", # read in metadata for ibuttons
-     na = "NA") 
+Primary_met <- read.delim("MOCO2025Primary_Met.tsv", # read in metadata for primary 
+     na = "NA") |> 
+  mutate(Bat_ID = as.character(Bat_ID))
 
-glimpse(Analysis_results) # check formatting
+glimpse(Primary_met) # check formatting
 
-Analysis_results$Bat_ID = as.character(Analysis_results$Bat_ID) # change Bat_ID to a character
+Primary_Results <- read.delim("MOCO2025PrimaryTemperature.tsv", # read in results for primary 
+     na = "NA") |> 
+  mutate(Bat_ID = as.character(Bat_ID))
 
-glimpse(Analysis_results) # check formatting again
+glimpse(Primary_Results)
 ```
+
+```{r}
+Secondary_met <- read.delim("MOCO2025Secondary_Met.tsv", # read in metadata for primary 
+     na = "NA") |> 
+  mutate(Bat_ID = as.character(Bat_ID))
+
+glimpse(Secondary_met) # check formatting
+
+Secondary_Results <- read.delim("MOCO2025SecondaryTemperature.tsv", # read in results for primary 
+     na = "NA") |> 
+  mutate(Bat_ID = as.character(Bat_ID))
+
+glimpse(Secondary_Results)
+```
+
 
 I am going to load in my data and metadata for both immunizations
 
 Make values for bat names and assign colors for groups
 ```{r}
-ResultsNames <- unique(Analysis_results$Bat_ID)
+PrimaryNames <- unique(Primary_met$Bat_ID)
+SecondaryNames <- unique(Secondary_met$Bat_ID)
 
-treatmentcolors <- c("CP" = "#9EB0FFFF",
-            "CP+S" = "#2D7597FF",
-            "CS" = "#FFACACFF", 
-            "NoCo" =  "#8A3F2A",
-            "SHAM" = "#11181DFF",
-            "Tnorm" = "black")
 
-primary_colors <- c("Cold" = "#9EB0FFFF",
+treatment_colors <- c("Cold" = "#9EB0FFFF",
                     "NoCo" = "#8A3F2A",
                     "SHAM" = "#11181DFF" )
+
+facet_colors <- c("Cold" = "#9EB0FFFF",
+                    "NoCo - C1" = "#8A3F2A",
+                  "NoCo - C2" = "#8A3F2A",
+                    "Sham - C1" = "#11181DFF",
+                  "Sham - C2" = "#11181DFF")
+
+primary_colors <- c("64" = "#7891FF", "68" = "#4D69E8","74" = "#1E3BB3")
 ```
 
-Okay, first thing I am going to do is group all CS and NoCo and CP and CP+S into two groups before secondary. I am then only going to pull out days before Secondary.
+
+
+## Traces and Visualizations 
+
 ```{r}
-Analysis_results <- Analysis_results |> 
-  mutate(Primary_Treatment = case_when(Treatment %in% c("CP+S" , "CP") ~  "Primary_Cold",
-         Treatment %in% c("CS" , "NoCo") ~ "Primary_NoCo",
-         TRUE ~ "SHAM"))
+Primary_met <- Primary_met |> 
+  mutate(id = Bat_ID) |> 
+  mutate(id = as.character(id))
+
+Secondary_met <- Secondary_met |> 
+  mutate(id = Bat_ID) |> 
+  mutate(id = as.character(id))
 ```
-I am also going to make two additional columns. One that is regular treatment+datetype and another that is 'primary treatment'+ datetype. 
+
+
+#### None Traces
 
 ```{r}
-Analysis_results$Group_Combo <- factor(paste(Analysis_results$Treatment, Analysis_results$DateType, sep = "_"))
+None_data_primary <- Primary_Results |> 
+  filter(DateType == "Baseline") |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
 
-Analysis_results$Primary_Combo <- factor(paste(Analysis_results$Primary_Treatment, Analysis_results$DateType, sep = "_"))
+none_p_met <- data.table::data.table(Primary_met, key = "id")
+none_p_data <- data.table::data.table(None_data_primary, key = "id")
 
-Analysis_results <- Analysis_results |> 
-  mutate(Treatment = factor(Treatment, levels = c("SHAM", "NoCo", "CP", "CS", "CP+S")))
+ none_p_behavr <- behavr(none_p_data, none_p_met)
+ 
+ nonestartp <- min(none_p_behavr$t)
+  noneendp <- max(none_p_behavr$t)
+  
+summary_df <- none_p_behavr %>%
+  mutate(t_day = t %% 86400) %>% 
+  group_by(Bat_ID, id, t_day) %>%
+  summarise(
+    mean_temp = mean(Temperature, na.rm = TRUE),
+    sd_temp   = sd(Temperature, na.rm = TRUE),
+    n         = n(),
+    se_temp   = sd_temp / sqrt(n),
+    # 95% Confidence Interval bounds
+    ci_lower  = mean_temp - (1.96 * se_temp),
+    ci_upper  = mean_temp + (1.96 * se_temp),
+    .groups   = "drop"
+  )
 
-Analysis_results <- Analysis_results |> 
-  mutate(DateType = factor(DateType, levels = c("None", "Basal TC-1", "Basal TC", "Basal TC + 1", "Pre", "Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3", "Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3", "D27", "D28")))
+ MOCO_Nonep <- ggplot(summary_df, aes(x = t_day, y = mean_temp)) +
+  
+  # Light/Dark annotations
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,      
+    l_duration = 43200, 
+    ld_colours = c("white", "black")
+  ) +
+  
+  # Ribbon using pre-calculated upper/lower bounds
+  geom_ribbon(
+    aes(ymin = ci_lower, ymax = ci_upper, fill = id),
+    color = NA,        # Strips border completely
+    alpha = 0.35
+  ) +
+  # Mean line
+  geom_line(
+    aes(color = id),
+    linewidth = 1
+  ) +
+  scale_colour_manual(values = primary_colors) +
+  scale_fill_manual(values = primary_colors) +
+  facet_grid(Bat_ID ~ .) +
+  scale_x_continuous(
+    name = "Zeitgeiber Time (HH:MM)",
+    breaks = seq(0, 86400, by = 10800),
+    labels = function(x) sprintf("%02d:00", (x / 3600) %% 24),
+    expand = c(0, 0)
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 25, vjust = 0.8),
+    text = element_text(size = 15),
+    panel.grid = element_blank()
+  ) +
+  labs(y = "Skin Temperature (°C)")
 
+MOCO_Nonep
+
+
+ggsave("MOCO_none.jpeg", plot = MOCO_Nonep, device = jpeg(), width = 7, height = 5.5)
+```
+
+```{r}
+np_day_summary <- none_p_behavr %>%
+  group_by(Bat_ID, ExperimentDay) |> 
+  summarise(
+    DayMinimum = min(Temperature, na.rm = TRUE),
+    DayMaximum = max(Temperature, na.rm = TRUE),
+    DayAverage = mean(Temperature, na.rm = TRUE),
+     n = n(), 
+    Daysd_temp = sd(Temperature),
+    Dayse_temp  = Daysd_temp / sqrt(n),) |> 
+  ungroup()
+
+np_summary <- none_p_behavr %>%
+  group_by(Bat_ID) |> 
+  summarise(
+    Minimum = min(Temperature, na.rm = TRUE),
+    Maximum = max(Temperature, na.rm = TRUE),
+    Average = mean(Temperature, na.rm = TRUE),
+     n = n(), 
+    sd_temp = sd(Temperature),
+    se_temp  = sd_temp / sqrt(n),) |> 
+  ungroup()
+```
+
+
+### Primary Traces
+
+```{r}
+Primary_days <- Primary_Results |> 
+  filter(Day_Number >= -4 & Day_Number <= 4) |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
+
+none_p_met <- data.table::data.table(Primary_met, key = "id")
+p_data <- data.table::data.table(Primary_days, key = "id")
+
+p_behavr <- behavr(p_data, none_p_met)
+ 
+ startp <- min(p_behavr$t)
+ endp <- max(p_behavr$t)
+
+p_summary <- p_behavr %>%
+  group_by(Bat_ID, DateType) |> 
+  summarise(
+    Minimum = min(Temperature, na.rm = TRUE),
+    Maximum = max(Temperature, na.rm = TRUE),
+    Average = mean(Temperature, na.rm = TRUE),
+    n = n(), 
+    sd_temp = sd(Temperature),
+    se_temp  = sd_temp / sqrt(n),) |> 
+  ungroup() 
+
+write.csv(p_summary, "MOCO2025_primary_summary.csv")
+```
+
+```{r}
+shaded <- data.frame(
+  xmin = c(1748001900, 1748277000), 
+  xmax = c(1748049000, 1748306400),
+  ymin = -Inf,
+  ymax = Inf)
+
+day_ticks <- p_behavr[!duplicated(p_behavr$ExperimentDay), ]
+
+  ggetho(p_behavr, aes(x = t, y = Temperature, colour = id, fill = id)) +
+  # 1. Shaded region
+  geom_rect(data = shaded, 
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = "grey70", alpha = 0.5, inherit.aes = FALSE) +
+    geom_line(
+      data = p_behavr,
+    aes(x = t, y = AmbientT), # Map ambient temp column here
+    colour = "grey50",    # Fixed grey color
+    linewidth = 0.2,
+    linetype = "solid",   # Use "dashed" if you want to distinguish it further
+    inherit.aes = FALSE   # Ignores global 'colour = id' mapping
+  ) +
+    geom_line(linewidth = 0.8) +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,      
+    l_duration = 43200, 
+    ld_colours = c("white", "black")) +
+  facet_grid(id ~ .) +
+     scale_colour_manual(values = primary_colors) +
+  scale_fill_manual(values = primary_colors) +
+  scale_x_continuous(
+    name = "Experiment Day",
+    breaks = day_ticks$t,             
+    labels = day_ticks$ExperimentDay,
+    limits = c(min(p_behavr$t), max(p_behavr$t)),
+    expand = c(0,0) ) +
+  theme_bw() +
+  theme(legend.position = "none",
+    axis.text.x = element_text(angle = -25, vjust = 1, hjust = 0),
+    text = element_text(size = 16),
+    panel.grid = element_blank()) +
+  labs(y = "Skin Temperature (°C)") -> MOCO_Primary
+
+print(MOCO_Primary)
+
+ggsave("MOCO_Primary.jpeg", plot = MOCO_Primary, device = jpeg(), width = 7, height = 5.5)
+
+```
+
+## Secondary Traces
+
+```{r}
+Secondary_Results <- Secondary_Results %>%
+  mutate(
+    Facet_Group = case_when(
+      Treatment == "Cold" ~ "Cold",
+      TRUE ~ paste0(Treatment, " - C", Group) # e.g. "NoCo - 1", "NoCo - 2"
+    ),
+    # Lock in exact vertical order: Cold at top, then NoCo 1/2, then SHAM 1/2
+    Facet_Group = factor(
+      Facet_Group, 
+      levels = c("Cold", "NoCo - C1", "NoCo - C2", "Sham - C1", "Sham - C2")))
+
+Secondary_met <- Secondary_met |> 
+  mutate(
+    Facet_Group = case_when(
+      Treatment == "Cold" ~ "Cold",
+      TRUE ~ paste0(Treatment, " - C", Group) # e.g. "NoCo - 1", "NoCo - 2"
+    ),
+    # Lock in exact vertical order: Cold at top, then NoCo 1/2, then SHAM 1/2
+    Facet_Group = factor(
+      Facet_Group, 
+      levels = c("Cold", "NoCo - C1", "NoCo - C2", "Sham - C1", "Sham - C2")
+    )
+  )
+
+Secondary_Results_filter <- Secondary_Results |> 
+  filter(DateType %in% c("Secondary - 1", "Secondary", "Secondary + 1", "Secondary + 2", "Secondary + 3"))
+
+Secondary_Results_filter <- Secondary_Results_filter |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
+
+Secondary_met <- Secondary_met |> 
+  mutate(id = Bat_ID) |> 
+  mutate(id = as.character(id))
+
+ Secondary_met2 <- data.table::data.table(Secondary_met, key = "id")
+ Secondary_results2 <- data.table::data.table(Secondary_Results_filter, key = "id")
+
+ secondary_behavr <- behavr(Secondary_results2, Secondary_met2)
+ summary(secondary_behavr)
+ 
+s_summary <- Secondary_Results %>%
+  group_by(Bat_ID, DateType) |> 
+  summarise(
+    Minimum = min(Temperature, na.rm = TRUE),
+    Maximum = max(Temperature, na.rm = TRUE),
+    Average = mean(Temperature, na.rm = TRUE),
+    n = n(), 
+    sd_temp = sd(Temperature),
+    se_temp  = sd_temp / sqrt(n),) |> 
+  ungroup() 
+
+s_summary_treatment <- Secondary_Results %>%
+  group_by(Treatment, DateType) |> 
+  summarise(
+    Minimum = min(Temperature, na.rm = TRUE),
+    Maximum = max(Temperature, na.rm = TRUE),
+    Average = mean(Temperature, na.rm = TRUE),
+    n = n(), 
+    sd_temp = sd(Temperature),
+    se_temp  = sd_temp / sqrt(n),) |> 
+  ungroup() 
+
+write.csv(s_summary, "MOCO2025_secondary_summary.csv")
+```
+
+```{r}
+secondary_etho  <- ggetho(secondary_behavr, aes(x=t, y=id, z=Temperature)) + stat_tile_etho() +
+  scale_x_continuous(
+    name = "Date/time",
+    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
+    expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  labs(fill = "Temp (°C)",
+       y = "Bat ID")
+
+secondary_etho
+ggsave("EPFU_Sec_Etho.jpeg", plot = secondary_etho, device = jpeg(), width = 12, height = 6.67)
+```
+
+```{r}
+secondary_etho2  <- ggetho(secondary_behavr, aes(x=t, y=id, z=deltaT)) + stat_tile_etho() +
+  scale_x_continuous(
+    name = "Date/time",
+    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
+    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
+    expand = c(0,0)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  labs(fill = "Delta T (°C)",
+       y = "Bat ID")
+
+secondary_etho2
+
+ggsave("EPFU_Sec_Etho2.jpeg", plot = secondary_etho, device = jpeg(), width = 12, height = 6.67)
+```
+
+```{r}
+ggetho(secondary_behavr, aes(z = Temperature, y = Treatment)) + stat_tile_etho()
+```
+
+```{r}
+
+shaded2 <- data.frame(
+  xmin = c(1749137400 ), 
+  xmax = c(1749144600),
+  ymin = -Inf,
+  ymax = Inf)
+
+sday_ticks <- secondary_behavr[!duplicated(secondary_behavr$ExperimentDay), ]
+
+  secondary_behavr |>
+  ggetho(aes(x = t, y = Temperature, colour = Facet_Group)) +
+    geom_rect(data = shaded2, 
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = "grey70", alpha = 0.5, inherit.aes = FALSE) +
+    geom_line(
+      data = secondary_behavr,
+    aes(x = t, y = AmbientT), # Map ambient temp column here
+    colour = "grey50",    # Fixed grey color
+    linewidth = 0.2,
+    linetype = "solid",   # Use "dashed" if you want to distinguish it further
+    inherit.aes = FALSE   # Ignores global 'colour = id' mapping
+  ) +
+  stat_pop_etho(method = mean_cl_boot) +
+     stat_ld_annotations(
+    period = 86400,
+    phase = 25200,      
+    l_duration = 43200, 
+    ld_colours = c("white", "black")) +
+  facet_grid(Facet_Group ~ . ) +
+  scale_x_continuous(
+    name = "Experiment Day",
+     breaks = sday_ticks$t,             
+    labels = sday_ticks$ExperimentDay,
+    limits = c(min(secondary_behavr$t), max(secondary_behavr$t)), 
+    expand = c(0,0) )+
+  scale_colour_manual(values = facet_colors) +
+  scale_fill_manual(values = facet_colors) +
+  theme_bw() +
+  theme(legend.position = "null",
+    axis.text.x = element_text(angle = -25, vjust = 1, hjust = 0)) +
+  theme(text = element_text(size = 16), panel.grid = element_blank(),
+        strip.text.y = element_text(
+      size = 10,                                # Smaller font size for strip text
+      margin = margin(l = 5, r = 5)            # Adds horizontal padding
+    ))+
+  labs(y = "Skin Temperature (°C)") -> MOCO_Secondary
+
+print(MOCO_Secondary)
+
+ggsave("MOCO_Secondary.jpeg", plot = MOCO_Secondary, device = jpeg(), width = 7, height = 5.5)
 ```
 
 ## Basal Model

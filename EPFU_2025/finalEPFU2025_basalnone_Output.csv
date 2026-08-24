@@ -1,0 +1,4 @@
+,contrast,Treatment,estimate,SE,df,t.ratio,p.value
+1,None - Basal TC,CP,75.90,19.05,285.98,3.98,8.62E-05
+2,None - Basal TC,CS,103.26,24.46,286.05,4.22,3.26E-05
+3,None - Basal TC,CP+S,85.88,19.03,286.82,4.51,9.36E-06

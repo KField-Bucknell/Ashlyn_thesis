@@ -1,0 +1,19 @@
+Primary Treatment,DateType,emmean,SE,df,lower.CL,upper.CL
+Primary NoCo,None,-82.16,18.72,1.36,-212.19,47.87
+Primary NoCo,Primary - 1,-12.52,24.16,3.78,-81.20,56.16
+Primary NoCo,Primary,70.52,24.17,3.78,1.84,139.19
+Primary NoCo,Primary + 1,-2.35,25.38,4.56,-69.50,64.79
+Primary NoCo,Primary + 2,-51.01,24.20,3.79,-119.65,17.64
+Primary NoCo,Primary + 3,-22.94,25.33,4.56,-90.01,44.13
+Primary Cold,None,-59.78,17.68,1.09,-244.25,124.69
+Primary Cold,Primary - 1,-32.51,21.55,2.40,-111.81,46.79
+Primary Cold,Primary,-29.39,21.51,2.39,-108.98,50.20
+Primary Cold,Primary + 1,32.73,21.59,2.42,-46.35,111.80
+Primary Cold,Primary + 2,29.37,21.55,2.40,-49.94,108.68
+Primary Cold,Primary + 3,-3.91,21.51,2.39,-83.48,75.66
+SHAM,None,-66.24,19.70,1.57,-178.12,45.64
+SHAM,Primary - 1,25.63,25.94,4.82,-41.79,93.05
+SHAM,Primary,68.57,25.91,4.82,1.19,135.95
+SHAM,Primary + 1,13.93,25.95,4.83,-53.49,81.36
+SHAM,Primary + 2,-9.17,25.93,4.82,-76.58,58.24
+SHAM,Primary + 3,-38.22,25.94,4.82,-105.63,29.20
