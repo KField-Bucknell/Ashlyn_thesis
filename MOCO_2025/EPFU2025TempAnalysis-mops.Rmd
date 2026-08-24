@@ -136,7 +136,6 @@ none_p_data <- data.table::data.table(None_data_primary, key = "id")
 ```
   
 ```{r}
-
 none_summary <- None_data_primary %>%
   # STAGE 1: Calculate each bat's metrics per day
   group_by(Bat_ID, DateType, ExperimentDay) %>%
@@ -150,52 +149,59 @@ none_summary <- None_data_primary %>%
   group_by(Bat_ID, DateType) %>%
   summarise(
     n         = n(),
-    
     # Daily Minimums
     Avg_Min   = mean(bat_min, na.rm = TRUE),
-    se_min    = sd(bat_min, na.rm = TRUE) / sqrt(n),
-    
+    sd_min    = sd(bat_min, na.rm = TRUE),
     # Daily Maximums
     Avg_Max   = mean(bat_max, na.rm = TRUE),
-    se_max    = sd(bat_max, na.rm = TRUE) / sqrt(n),
-    
+    sd_max    = sd(bat_max, na.rm = TRUE) ,
     # Daily Means
     Avg_Mean  = mean(bat_mean, na.rm = TRUE),
-    se_mean   = sd(bat_mean, na.rm = TRUE) / sqrt(n),
-    
+    sd_mean   = sd(bat_mean, na.rm = TRUE),
     .groups   = "drop"
   )
 
 write.csv(none_summary2, "MOCO2025_none_summary.csv")
+
+summary_df <- none_p_behavr %>%
+  mutate(t_day = t %% 86400) %>% 
+  group_by(Bat_ID, id, t_day) %>%
+  summarise(
+    # Bat Temperature (Mean ± SD)
+    mean_temp  = mean(Temperature, na.rm = TRUE),
+    sd_temp    = sd(Temperature, na.rm = TRUE),
+    sd_lower   = mean_temp - sd_temp,
+    sd_upper   = mean_temp + sd_temp,
+    # Ambient Temperature (Mean ± SD)
+    Amean_temp = mean(AmbientT, na.rm = TRUE),
+    Asd_temp   = sd(AmbientT, na.rm = TRUE),
+    Asd_lower  = Amean_temp - Asd_temp,
+    Asd_upper  = Amean_temp + Asd_temp,
+    .groups    = "drop"
+  )
+
 ```
 
 ```{r}
- MOCO_Nonep <- ggplot(summary_df, aes(x = t_day, y = mean_temp)) +
-  
-  # Light/Dark annotations
+MOCO_Nonep <- ggplot(summary_df, aes(x = t_day)) +
+  # Light/Dark Bar
   stat_ld_annotations(
-    period = 86400,
-    phase = 25200,      
-    l_duration = 43200, 
+    period = 86400, phase = 25200, l_duration = 43200, 
     ld_colours = c("white", "black")
   ) +
+  # Ambient Ribbon & Line
+  geom_ribbon(data = summary_df, aes(ymin = Asd_lower, ymax = Asd_upper), fill = "grey80", color = NA, alpha = 0.5) +
+  geom_line(data = summary_df, aes(y = Amean_temp), colour = "grey40", linewidth = 0.5) +
   
-  # Ribbon using pre-calculated upper/lower bounds
-  geom_ribbon(
-    aes(ymin = ci_lower, ymax = ci_upper, fill = id),
-    color = NA,        # Strips border completely
-    alpha = 0.35
-  ) +
-  # Mean line
-  geom_line(
-    aes(color = id),
-    linewidth = 1
-  ) +
+  # Bat Skin Temp Ribbon & Line
+  geom_ribbon(data = summary_df, aes(ymin = sd_lower, ymax = sd_upper, fill = id), color = NA, alpha = 0.35) +
+  geom_line(data = summary_df, aes(y = mean_temp, color = id), linewidth = 0.8) +
+  
   scale_colour_manual(values = primary_colors) +
   scale_fill_manual(values = primary_colors) +
   facet_grid(Bat_ID ~ .) +
   scale_x_continuous(
-    name = "Zeitgeiber Time (HH:MM)",
+    name = "Zeitgeber Time (HH:MM)",
     breaks = seq(0, 86400, by = 10800),
     labels = function(x) sprintf("%02d:00", (x / 3600) %% 24),
     expand = c(0, 0)
@@ -216,29 +222,18 @@ ggsave("MOCO_none.jpeg", plot = MOCO_Nonep, device = jpeg(), width = 7, height =
 ```
 
 ```{r}
-np_day_summary <- none_p_behavr %>%
-  group_by(Bat_ID, ExperimentDay) |> 
+summary_df2 <- none_p_behavr %>%
+  mutate(t_day = t %% 86400) %>% 
+  group_by(Bat_ID, id, t_day) %>%
   summarise(
-    DayMinimum = min(Temperature, na.rm = TRUE),
-    DayMaximum = max(Temperature, na.rm = TRUE),
-    DayAverage = mean(Temperature, na.rm = TRUE),
-     n = n(), 
-    Daysd_temp = sd(Temperature),
-    Dayse_temp  = Daysd_temp / sqrt(n),) |> 
-  ungroup()
-
-np_summary <- none_p_behavr %>%
-  group_by(Bat_ID) |> 
-  summarise(
-    Minimum = min(Temperature, na.rm = TRUE),
-    Maximum = max(Temperature, na.rm = TRUE),
-    Average = mean(Temperature, na.rm = TRUE),
-     n = n(), 
-    sd_temp = sd(Temperature),
-    se_temp  = sd_temp / sqrt(n),) |> 
-  ungroup()
+    # delta t (Mean ± SD)
+    mean_DT  = mean(deltaT, na.rm = TRUE),
+    sd_DT    = sd(deltaT, na.rm = TRUE),
+    sd_lower   = mean_DT - sd_DT,
+    sd_upper   = mean_DT + sd_DT,
+    .groups    = "drop"
+  )
 ```
-
 
 ### Primary Traces
 
@@ -278,6 +273,12 @@ shaded <- data.frame(
   ymin = -Inf,
   ymax = Inf)
 
+injection <- data.frame(
+  xmin = c(1748274300), 
+  xmax = c(1748277000),
+  ymin = -Inf,
+  ymax = Inf)
+
 day_ticks <- p_behavr[!duplicated(p_behavr$ExperimentDay), ]
 
   ggetho(p_behavr, aes(x = t, y = Temperature, colour = id, fill = id)) +
@@ -293,6 +294,9 @@ day_ticks <- p_behavr[!duplicated(p_behavr$ExperimentDay), ]
     linetype = "solid",   # Use "dashed" if you want to distinguish it further
     inherit.aes = FALSE   # Ignores global 'colour = id' mapping
   ) +
+    geom_rect(data = injection, 
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = "red", alpha = 1, inherit.aes = FALSE) +
     geom_line(linewidth = 0.8) +
   stat_ld_annotations(
     period = 86400,
@@ -320,6 +324,92 @@ print(MOCO_Primary)
 ggsave("MOCO_Primary.jpeg", plot = MOCO_Primary, device = jpeg(), width = 7, height = 5.5)
 
 ```
+
+```{r}
+Post_prim <- Primary_Results |> 
+  filter(Day_Number >= 1 & Day_Number <= 3) |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
+
+none_p_met <- data.table::data.table(Primary_met, key = "id")
+p_data2 <- data.table::data.table(Post_prim, key = "id")
+
+p_behavr2 <- behavr(p_data2, none_p_met)
+ 
+ startp2 <- min(p_behavr$t)
+ endp2 <- max(p_behavr$t)
+```
+
+```{r}
+ MOCO_deltat <- ggplot(p_behavr2, aes(x = t %% 86400, y = deltaT, colour = Bat_ID)) +
+  
+  # 1. Light/Dark Bar Annotations
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,      
+    l_duration = 43200, 
+    ld_colours = c("white", "black")
+  ) +
+  
+  # 2. Mean Delta T Line (from summary_df2)
+  geom_line(
+    data = summary_df2,
+    aes(x = t_day, y = mean_DT),
+    colour = "grey50",
+    linewidth = 0.5,
+    linetype = "solid",
+    inherit.aes = FALSE
+  ) +
+  
+  # 3. Skin Temperature Line
+  geom_line(linewidth = 0.8) +
+  
+  # 4. Facet Grid (3 Bat Rows x 3 Day Columns)
+  facet_grid(Bat_ID ~ DateType) +
+  
+  # 5. Colors and Aesthetics
+  scale_colour_manual(values = primary_colors) +
+  scale_fill_manual(values = primary_colors) +
+  scale_x_continuous(
+    name = "Zeitgeber Time (HH:MM)",
+    breaks = seq(14400, 86400, by = 14400),
+    labels = function(x) sprintf("%02d:00", (x / 3600) %% 24),
+    expand = c(0, 0)
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 25, vjust = 0.8),
+    text = element_text(size = 14),
+    panel.grid = element_blank(),
+    strip.text.y = element_text(angle = 0)
+  ) +
+  labs(y = "Delta T (°C)")
+
+print(MOCO_deltat)
+
+ggsave("MOCO_deltaT.jpeg", plot = MOCO_deltat, device = jpeg(), width = 7, height = 5.5)
+
+```
+```{r} 
+Primary_Results_delta <- Primary_Results |> 
+  filter(DateType %in% c("Baseline", "Primary + 1", "Primary + 2", "Primary + 3"))
+
+p_summary2 <- Primary_Results_delta %>%
+  group_by(Bat_ID, DateType) |> 
+  summarise(
+    Minimum = min(deltaT, na.rm = TRUE),
+    Maximum = max(deltaT, na.rm = TRUE),
+    Average = mean(deltaT, na.rm = TRUE),
+    n = n(), 
+    sd_dtemp = sd(deltaT),
+    se_temp  = sd_dtemp / sqrt(n),) |> 
+  ungroup() 
+
+write.csv(p_summary2, "MOCO2025_deltat_summary.csv")
+```
+
 
 ## Secondary Traces
 

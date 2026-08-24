@@ -874,11 +874,31 @@ Rivendell_Primary_Trim <- Rivendell_Primary |>
   select(DateTime, NumberDate, avg_pri) |> 
   rename(Value = "avg_pri")
 
+primary_summary <- Rivendell_Primary_Trim |> 
+  filter(NumberDate > "1748278020",
+         NumberDate < "1748306040") |> 
+  summarise(
+    min = min(Value),
+    max = max(Value),
+    avg = mean(Value),
+    sd = sd(Value)
+  )
+
 Rivendell_Pre_Trim <- Rivendell_Pre |> 
   filter(NumberDate > "1748001901", 
          NumberDate < "1748049421") |> 
   select(DateTime, NumberDate, avg_pre) |> 
   rename(Value = "avg_pre")
+
+pre_summary <- Rivendell_Pre_Trim |> 
+  filter(NumberDate > "1748002560",
+         NumberDate < "1748048820") |> 
+  summarise(
+    min = min(Value),
+    max = max(Value),
+    avg = mean(Value),
+    sd = sd(Value)
+  )
 ```
 
 Okay, now that's done.. I need to take these times and add them to the corresponding rows. I think what I am going to do is separate the boost from the primary results, because my primary result bats were all in an incubator at that time. 
