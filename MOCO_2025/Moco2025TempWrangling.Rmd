@@ -1135,10 +1135,9 @@ Final_Primary <- Final_Primary|>
        Day_Number == "2" ~ "Primary + 2",
         Day_Number == "3" ~ "Primary + 3",
        Day_Number == "-3" ~ "Basal TC",
-        Day_Number == "-2" ~ "Basal TC 2",
      Day_Number == "7" ~ "Bleed",
      Day_Number == "14" ~ "Bleed",
-      Day_Number < 0 ~ "Pre",  
+      Day_Number < 0 ~ paste0("Pre",  Day_Number),
       TRUE ~ "Baseline"))
 ```
 

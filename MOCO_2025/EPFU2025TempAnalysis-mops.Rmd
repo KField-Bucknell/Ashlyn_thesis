@@ -133,21 +133,43 @@ none_p_data <- data.table::data.table(None_data_primary, key = "id")
  
  nonestartp <- min(none_p_behavr$t)
   noneendp <- max(none_p_behavr$t)
+```
   
-summary_df <- none_p_behavr %>%
-  mutate(t_day = t %% 86400) %>% 
-  group_by(Bat_ID, id, t_day) %>%
+```{r}
+
+none_summary <- None_data_primary %>%
+  # STAGE 1: Calculate each bat's metrics per day
+  group_by(Bat_ID, DateType, ExperimentDay) %>%
   summarise(
-    mean_temp = mean(Temperature, na.rm = TRUE),
-    sd_temp   = sd(Temperature, na.rm = TRUE),
+    bat_min  = min(Temperature, na.rm = TRUE),
+    bat_max  = max(Temperature, na.rm = TRUE),
+    bat_mean = mean(Temperature, na.rm = TRUE),
+    .groups  = "drop")
+    
+    none_summary2 <- none_summary |> 
+  group_by(Bat_ID, DateType) %>%
+  summarise(
     n         = n(),
-    se_temp   = sd_temp / sqrt(n),
-    # 95% Confidence Interval bounds
-    ci_lower  = mean_temp - (1.96 * se_temp),
-    ci_upper  = mean_temp + (1.96 * se_temp),
+    
+    # Daily Minimums
+    Avg_Min   = mean(bat_min, na.rm = TRUE),
+    se_min    = sd(bat_min, na.rm = TRUE) / sqrt(n),
+    
+    # Daily Maximums
+    Avg_Max   = mean(bat_max, na.rm = TRUE),
+    se_max    = sd(bat_max, na.rm = TRUE) / sqrt(n),
+    
+    # Daily Means
+    Avg_Mean  = mean(bat_mean, na.rm = TRUE),
+    se_mean   = sd(bat_mean, na.rm = TRUE) / sqrt(n),
+    
     .groups   = "drop"
   )
 
+write.csv(none_summary2, "MOCO2025_none_summary.csv")
+```
+
+```{r}
  MOCO_Nonep <- ggplot(summary_df, aes(x = t_day, y = mean_temp)) +
   
   # Light/Dark annotations
@@ -222,7 +244,7 @@ np_summary <- none_p_behavr %>%
 
 ```{r}
 Primary_days <- Primary_Results |> 
-  filter(Day_Number >= -4 & Day_Number <= 4) |> 
+  filter(Day_Number >= -4 & Day_Number <= 3) |> 
   mutate(id = Bat_ID) |> 
   mutate(t = NumberDate) |> 
   mutate(id = as.character(id))
@@ -283,7 +305,7 @@ day_ticks <- p_behavr[!duplicated(p_behavr$ExperimentDay), ]
   scale_x_continuous(
     name = "Experiment Day",
     breaks = day_ticks$t,             
-    labels = day_ticks$ExperimentDay,
+    labels = day_ticks$DateType,
     limits = c(min(p_behavr$t), max(p_behavr$t)),
     expand = c(0,0) ) +
   theme_bw() +
@@ -356,17 +378,35 @@ s_summary <- Secondary_Results %>%
   ungroup() 
 
 s_summary_treatment <- Secondary_Results %>%
-  group_by(Treatment, DateType) |> 
+  # STAGE 1: Calculate each bat's metrics per day
+  group_by(Treatment, Bat_ID, DateType) %>%
   summarise(
-    Minimum = min(Temperature, na.rm = TRUE),
-    Maximum = max(Temperature, na.rm = TRUE),
-    Average = mean(Temperature, na.rm = TRUE),
-    n = n(), 
-    sd_temp = sd(Temperature),
-    se_temp  = sd_temp / sqrt(n),) |> 
-  ungroup() 
+    bat_min  = min(Temperature, na.rm = TRUE),
+    bat_max  = max(Temperature, na.rm = TRUE),
+    bat_mean = mean(Temperature, na.rm = TRUE),
+    .groups  = "drop"
+  ) %>%
+  # STAGE 2: Means and SEs across bats per treatment per day
+  group_by(Treatment, DateType) %>%
+  summarise(
+    n         = n(),
+    
+    # Daily Minimums
+    Avg_Min   = mean(bat_min, na.rm = TRUE),
+    se_min    = sd(bat_min, na.rm = TRUE) / sqrt(n),
+    
+    # Daily Maximums
+    Avg_Max   = mean(bat_max, na.rm = TRUE),
+    se_max    = sd(bat_max, na.rm = TRUE) / sqrt(n),
+    
+    # Daily Means
+    Avg_Mean  = mean(bat_mean, na.rm = TRUE),
+    se_mean   = sd(bat_mean, na.rm = TRUE) / sqrt(n),
+    
+    .groups   = "drop"
+  )
 
-write.csv(s_summary, "MOCO2025_secondary_summary.csv")
+write.csv(s_summary_treatment, "MOCO2025_secondary_summary.csv")
 ```
 
 ```{r}
@@ -437,7 +477,7 @@ sday_ticks <- secondary_behavr[!duplicated(secondary_behavr$ExperimentDay), ]
   scale_x_continuous(
     name = "Experiment Day",
      breaks = sday_ticks$t,             
-    labels = sday_ticks$ExperimentDay,
+    labels = sday_ticks$DateType,
     limits = c(min(secondary_behavr$t), max(secondary_behavr$t)), 
     expand = c(0,0) )+
   scale_colour_manual(values = facet_colors) +
