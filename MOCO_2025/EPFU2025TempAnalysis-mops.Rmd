@@ -38,6 +38,7 @@ if (!require("patchwork")) install.packages("patchwork"); library(patchwork)
 if (!require("ggsignif")) install.packages("ggsignif"); library(ggsignif)
 if (!require("car")) install.packages("car"); library(car)
 if (!require("Hmisc")) install.packages("Hmisc"); library(Hmisc)
+
 #if (!require("ggeffects")) install.packages("ggeffects"); library(ggeffects)
 
 
@@ -469,7 +470,7 @@ s_summary <- Secondary_Results %>%
 
 s_summary_treatment <- Secondary_Results %>%
   # STAGE 1: Calculate each bat's metrics per day
-  group_by(Treatment, Bat_ID, DateType) %>%
+  group_by(Treatment, Bat_ID, DateType, Group) %>%
   summarise(
     bat_min  = min(Temperature, na.rm = TRUE),
     bat_max  = max(Temperature, na.rm = TRUE),
@@ -477,22 +478,18 @@ s_summary_treatment <- Secondary_Results %>%
     .groups  = "drop"
   ) %>%
   # STAGE 2: Means and SEs across bats per treatment per day
-  group_by(Treatment, DateType) %>%
+  group_by(Treatment, DateType, Group) %>%
   summarise(
     n         = n(),
-    
     # Daily Minimums
     Avg_Min   = mean(bat_min, na.rm = TRUE),
     se_min    = sd(bat_min, na.rm = TRUE) / sqrt(n),
-    
     # Daily Maximums
     Avg_Max   = mean(bat_max, na.rm = TRUE),
     se_max    = sd(bat_max, na.rm = TRUE) / sqrt(n),
-    
     # Daily Means
     Avg_Mean  = mean(bat_mean, na.rm = TRUE),
     se_mean   = sd(bat_mean, na.rm = TRUE) / sqrt(n),
-    
     .groups   = "drop"
   )
 
@@ -500,19 +497,32 @@ write.csv(s_summary_treatment, "MOCO2025_secondary_summary.csv")
 ```
 
 ```{r}
+sday_ticks <- secondary_behavr[!duplicated(secondary_behavr$ExperimentDay), ]
+
 secondary_etho  <- ggetho(secondary_behavr, aes(x=t, y=id, z=Temperature)) + stat_tile_etho() +
   scale_x_continuous(
-    name = "Date/time",
-    breaks = seq(1748977200, max(secondary_behavr$t), by = 86400), 
-    labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = "UTC"), "%b %d, %H:%M"),
-    expand = c(0,0)) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+    name = "Experiment Day",
+     breaks = sday_ticks$t,             
+    labels = sday_ticks$DateType,
+    limits = c(min(secondary_behavr$t), max(secondary_behavr$t)), 
+    expand = c(0,0) )+
+    theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0)) +
   labs(fill = "Temp (°C)",
        y = "Bat ID")
 
 secondary_etho
 ggsave("EPFU_Sec_Etho.jpeg", plot = secondary_etho, device = jpeg(), width = 12, height = 6.67)
 ```
+
+```{r}
+summary_missing <- secondary_behavr |> 
+  group_by(Bat_ID, Treatment) |> 
+  summarise(n = n())
+
+write.csv(summary_missing, "MOCO2025_missing_summary.csv")
+
+```
+
 
 ```{r}
 secondary_etho2  <- ggetho(secondary_behavr, aes(x=t, y=id, z=deltaT)) + stat_tile_etho() +
@@ -542,7 +552,6 @@ shaded2 <- data.frame(
   ymin = -Inf,
   ymax = Inf)
 
-sday_ticks <- secondary_behavr[!duplicated(secondary_behavr$ExperimentDay), ]
 
   secondary_behavr |>
   ggetho(aes(x = t, y = Temperature, colour = Facet_Group)) +
@@ -585,6 +594,125 @@ sday_ticks <- secondary_behavr[!duplicated(secondary_behavr$ExperimentDay), ]
 print(MOCO_Secondary)
 
 ggsave("MOCO_Secondary.jpeg", plot = MOCO_Secondary, device = jpeg(), width = 7, height = 5.5)
+```
+```{r}
+  sec_baseline <- Secondary_Results %>%
+    filter(DateType == "Baseline",
+           !Treatment == "Cold") |> 
+mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
+
+sec_BL_summary <- sec_baseline |>    
+mutate(t_day = t %% 86400) %>% 
+  group_by(Facet_Group,t_day) %>%
+  summarise(
+    # delta t (Mean ± SD)
+    mean_DT  = mean(deltaT, na.rm = TRUE),
+    sd_DT    = sd(deltaT, na.rm = TRUE),
+    sd_lower   = mean_DT - sd_DT,
+    sd_upper   = mean_DT + sd_DT,
+    .groups    = "drop"
+  )
+```
+ 
+```{r}
+Post_sec_summary <- Secondary_Results |> 
+  filter(
+    Day_Number >= 22 & Day_Number <= 24,
+    Treatment != "Cold"
+  ) |> 
+  mutate(
+    id = as.character(Bat_ID),
+    t  = as.numeric(NumberDate),
+    t_day = t %% 86400
+  ) |> 
+  # Grouping without 'id' collapses all bats into one mean line per treatment
+  group_by(Facet_Group, Treatment, DateType, t_day) |> 
+  summarise(
+    mean_DT  = mean(deltaT, na.rm = TRUE),
+    sd_DT    = sd(deltaT, na.rm = TRUE),
+    sd_lower = mean_DT - sd_DT,
+    sd_upper = mean_DT + sd_DT,
+    .groups  = "drop"
+  )
+
+# 2. Plot single mean lines with SD shading ribbon
+MOCO_deltat_sec <- ggplot(Post_sec_summary, aes(x = t_day, y = mean_DT, colour = Facet_Group, fill = Facet_Group)) +
+  
+  # Light/Dark Bar Annotations
+  stat_ld_annotations(
+    period = 86400,
+    phase = 25200,      
+    l_duration = 43200, 
+    ld_colours = c("white", "black")
+  ) +
+  
+  # Mean Delta T Baseline Reference Line
+  geom_line(
+    data = sec_BL_summary,
+    aes(x = t_day, y = mean_DT),
+    colour = "grey50",
+    linewidth = 0.5,
+    linetype = "solid",
+    inherit.aes = FALSE
+  ) +
+
+  # Standard Deviation Ribbon (Optional)
+  geom_ribbon(
+    aes(ymin = sd_lower, ymax = sd_upper),
+    alpha = 0.2,
+    colour = NA
+  ) +
+  
+  # Clean Group Average Line
+  geom_line(aes(group = Treatment), linewidth = 0.8) +
+  
+  # Facet Grid (Facet_Group rows)
+  facet_grid(Facet_Group ~ DateType) +
+  
+  # Colors, Scales, Theme
+  scale_colour_manual(values = facet_colors) +
+  scale_fill_manual(values = facet_colors) +
+  scale_x_continuous(
+    name = "Zeitgeber Time (HH:MM)",
+    breaks = seq(14400, 86400, by = 14400),
+    labels = function(x) sprintf("%02d:00", (x / 3600) %% 24),
+    expand = c(0, 0)
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 25, vjust = 0.8),
+    text = element_text(size = 14),
+    panel.grid = element_blank(),
+    strip.text.y = element_text(angle = 0)
+  ) +
+  labs(y = "Mean Delta T (°C)")
+
+MOCO_deltat_sec
+
+ggsave("MOCO_deltaT_sec.jpeg", plot = MOCO_deltat_sec, device = jpeg(), width = 7, height = 5.5)
+
+```
+
+```{r}
+secondary_delta <- Secondary_Results |> 
+  filter(DateType %in% c("Baseline", "Secondary + 1", "Secondary + 2", "Secondary + 3"),
+         !Treatment == "Cold")
+
+sec_delta <- secondary_delta %>%
+  group_by(Facet_Group, DateType) |> 
+  summarise(
+    Minimum = min(deltaT, na.rm = TRUE),
+    Maximum = max(deltaT, na.rm = TRUE),
+    Average = mean(deltaT, na.rm = TRUE),
+    n = n(), 
+    sd_dtemp = sd(deltaT),
+    se_temp  = sd_dtemp / sqrt(n),) |> 
+  ungroup() 
+
+write.csv(sec_delta, "MOCO2025_deltat_secondary.csv")
 ```
 
 ## Basal Model

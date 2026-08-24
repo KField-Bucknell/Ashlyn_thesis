@@ -1,0 +1,17 @@
+Treatment,Cohort,DateType,Minimum,Maximum,Average
+NoCo,1,Baseline,1.8,16.5,9.2 ± 3.6
+NoCo,1,Secondary + 1,2.5,17.4,11.0 ± 3.2
+NoCo,1,Secondary + 2,5.5,17.5,11.1 ± 3.1
+NoCo,1,Secondary + 3,1.3,18.0,9.0 ± 3.6
+NoCo,2,Baseline,-4.6,14.4,6.9 ± 4.1
+NoCo,2,Secondary + 1,-4.1,15.3,7.7 ± 5.2
+NoCo,2,Secondary + 2,-3.6,15.4,9.0 ± 4.2
+NoCo,2,Secondary + 3,-6.1,15.3,7.0 ± 5.2
+Sham,1,Baseline,-6.8,15.8,7.9 ± 4.5
+Sham,1,Secondary + 1,-4.8,15.3,8.4 ± 4.4
+Sham,1,Secondary + 2,-1.3,16.8,9.5 ± 4.7
+Sham,1,Secondary + 3,-4.3,16.0,8.0 ± 4.6
+Sham,2,Baseline,-5.3,15.8,8.8 ± 3.8
+Sham,2,Secondary + 1,2.8,16.3,9.5 ± 3.7
+Sham,2,Secondary + 2,-1.6,16.3,9.4 ± 3.9
+Sham,2,Secondary + 3,0.4,16.3,9.4 ± 3.8
