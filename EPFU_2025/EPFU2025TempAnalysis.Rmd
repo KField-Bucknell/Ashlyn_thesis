@@ -56,7 +56,7 @@ This code is going to be AUC models. In EPFU2025TempWrangling, I calibrated and 
 
 ```{r}
 Analysis_results <- read.delim("EPFU2025Analysis_Results.tsv", # read in metadata for ibuttons
-     na = "NA") 
+     na = "NA")
 
 glimpse(Analysis_results) # check formatting
 
@@ -676,12 +676,12 @@ p_hypo_bottom <- ggplot() +
   geom_signif(data = p_hypo_sig_bars,
     aes(xmin = Left, 
       xmax = Right, 
-      annotations = annotation, 
+      annotations = p.value2, 
       y_position = y_position),
     manual = TRUE,
     tip_length = 0.02,
-    textsize = 3,
-    vjust = -0.2) +
+    textsize = 5,
+    vjust = -0.1) +
    geom_signif(data = comparison_bars_prim_hypo,
     aes(xmin = Left, 
       xmax = Right, 
@@ -693,12 +693,15 @@ p_hypo_bottom <- ggplot() +
   scale_color_manual(values = primary_colors) +
   scale_fill_manual(values = primary_colors) +
   facet_wrap(~ DateType, ncol = 3) + 
-  labs(x = "Primary Treatment", y = NULL, color = "Primary Treatment") +
+  labs(x = "Primary Treatment", y = "Hypo TD (Degree Hours) EMM", color = "Primary Treatment") +
   theme_bw() +
   theme(
     legend.position = "none",
     panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank())
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12, color = "black"),
+    strip.text = element_text(size = 14, face = "bold"))
 print(p_hypo_bottom)
 
 primary_hypo_plot <- (p_hypo_top / p_divider / p_hypo_bottom) + 
@@ -712,6 +715,13 @@ ggsave(
   plot = primary_hypo_plot, 
   width = 8,  # Narrower width (inches)
   height = 10,  # Much taller height (inches)
+  dpi = 300)
+
+ggsave(
+  filename = "primary_HypoNTD.png", 
+  plot = p_hypo_bottom, 
+  width = 8,  # Narrower width (inches)
+  height = 7,  # Much taller height (inches)
   dpi = 300)
 ```
 
@@ -906,11 +916,11 @@ prim_hyper_sig_bars <- prim_hyper_sig_bars |>
 
 prim_hyper_sig_bars <- prim_hyper_sig_bars |> 
  mutate(y_position = case_when(
-    contrast == "SvN_P" ~ 95,
-    contrast == "NvC_P" ~ 83,
-    contrast == "NvC_1" ~ 65,
-    contrast == "NvC_2" ~ 65,
-    contrast == "NvC_3" ~ 65))
+    contrast == "SvN_P" ~ 128,
+    contrast == "NvC_P" ~ 116,
+    contrast == "NvC_1" ~ 110,
+    contrast == "NvC_2" ~ 110,
+    contrast == "NvC_3" ~ 110))
 ```
 
 
@@ -959,7 +969,7 @@ p_hyper_top <- ggplot() +
     aes(x = DateType, ymin = SE_lower, ymax = SE_Upper, color = Treatment),
     width = 0.1, linewidth = 0.7
   ) +
-   coord_cartesian(ylim = c(-10, 95)) +
+   coord_cartesian(ylim = c(-10, 110)) +
   scale_color_manual(values = primary_colors) +
   labs(x = "DateType", y = NULL) +
   theme_bw() +
@@ -989,29 +999,33 @@ p_hyper_bottom <- ggplot() +
   geom_signif(data = prim_hyper_sig_bars,
     aes(xmin = Left, 
       xmax = Right, 
-      annotations = annotation, 
+      annotations = p.value2, 
       y_position = y_position),
     manual = TRUE,
     tip_length = 0.02,
-    textsize = 3,
-    vjust = -0.2) +
-   geom_signif(data = comparison_bars_prim_hyper,
-    aes(xmin = Left, 
-      xmax = Right, 
-      annotations = "", 
-      y_position = y_position),
-    manual = TRUE,
-    tip_length = -0.02) +
-  coord_cartesian(ylim = c(-10, 95)) +
+    textsize = 5,
+    vjust = -0.1) +
+# readd these lines of code for the comparison bars. I do not need right for my presentation though  
+#   geom_signif(data = comparison_bars_prim_hyper, 
+#    aes(xmin = Left, 
+#      xmax = Right, 
+#      annotations = "", 
+#      y_position = y_position),
+#    manual = TRUE,
+#    tip_length = -0.02) +
+  coord_cartesian(ylim = c(0, 135)) + # change to -10 when adding comparison bars
   scale_color_manual(values = primary_colors) +
   scale_fill_manual(values = primary_colors) +
   facet_wrap(~ DateType, ncol = 3) + 
-  labs(x = "Primary Treatment", y = NULL, color = "Primary Treatment") +
+  labs(x = "Primary Treatment", y = "Hyper TD (Degree Hours) EMM", color = "Primary Treatment") +
   theme_bw() +
   theme(
     legend.position = "none",
     panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank())
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12, color = "black"),
+    strip.text = element_text(size = 14, face = "bold"))
 print(p_hyper_bottom)
 
 primary_hyper_plot <- (p_hyper_top / p_divider / p_hyper_bottom) + 
@@ -1025,6 +1039,13 @@ ggsave(
   plot = primary_hyper_plot, 
   width = 8,  # Narrower width (inches)
   height = 10,  # Much taller height (inches)
+  dpi = 300)
+
+ggsave(
+  filename = "primary_HyperNTD.png", 
+  plot = p_hyper_bottom, 
+  width = 8,  # Narrower width (inches)
+  height = 7,  # Much taller height (inches)
   dpi = 300)
 ```
 
@@ -1254,7 +1275,7 @@ secondary_contrasts <- as.data.frame(contrast(secondarymixed_emmeans, method = s
 
 write.csv(secondary_contrasts, "EPFU2025_secondary_Output.csv")
 write.csv(secondarymixed_emmeansdf, "EPFU2025_secondary_emm.csv")
-\
+
 
 ```
 So there is no statistically difference in AUC between SHAM and NoCo, CP+S and CS, or NoCo and CP on any day. CP+S had a significantly lower AUC than CP on D21 and CS had a significantly lower AUC than Noco on D21. 
@@ -2714,7 +2735,7 @@ bp_end   <- max(Bp_behavr$t)
 
 ```{r}
 Primary_Results_Full <- Results |> 
-  filter(DateType %in% c("Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3"))
+  filter(DateType %in% c("Primary - 1", "Primary", "Primary + 1", "Primary + 2", "Primary + 3")) 
 
 Primary_Results_Full <- Primary_Results_Full |> 
   mutate(id = Bat_ID) |> 
@@ -2722,9 +2743,20 @@ Primary_Results_Full <- Primary_Results_Full |>
   mutate(id = as.character(id))
 
 Primary_Results_Full <- Primary_Results_Full |> 
-  mutate(Primary_Treatment = case_when(Treatment %in% c("CP+S" , "CP") ~  "Primary_Cold",
-         Treatment %in% c("CS" , "NoCo") ~ "Primary_NoCo",
+  mutate(Primary_Treatment = case_when(Treatment %in% c("CP+S" , "CP") ~  "Cold",
+         Treatment %in% c("CS" , "NoCo") ~ "NoCo",
          TRUE ~ "SHAM"))
+
+Primary_Results_Full <- Primary_Results_Full |> 
+  group_by(Primary_Treatment) |> 
+  mutate(prim_tnorm = mean(Temp_norm)) |> 
+  ungroup()
+
+Metadata2 <- Metadata2 |> 
+  mutate(Primary_Treatment = case_when(Treatment %in% c("CP+S" , "CP") ~  "Cold",
+         Treatment %in% c("CS" , "NoCo") ~ "NoCo",
+         TRUE ~ "SHAM"),
+         p_tnorm = mean(Tnorm))
 
  Primary_met <- data.table::data.table(Metadata2, key = "id")
  Primary_results2 <- data.table::data.table(Primary_Results_Full, key = "id")
@@ -2784,7 +2816,7 @@ primary_behavr |>
             fill = "grey70", alpha = 0.5, inherit.aes = FALSE) +
             
   # 2. Baseline line (Moved colour OUTSIDE aes)
-  geom_hline(aes(yintercept = Tnorm), 
+  geom_hline(aes(yintercept = p_tnorm), 
              colour = "black",        # Static color, won't show in legend
              linetype = "dashed", 
              linewidth = 0.8) +
@@ -2817,6 +2849,57 @@ print(EPFU_Primary)
 ggsave("EPFU_Primary.jpeg", plot = EPFU_Primary, device = jpeg(), width = 10, height = 6.67)
 
 ```
+
+```{r}
+
+shaded_p <- data.frame(Primary_Treatment = c("Cold"), xmin = 1757344201 , 
+  xmax = 1757422801,#adds shaded regions for both the basal and primary thermal #challenges
+                     label = c("Primary TC"))
+
+day_ticks <- primary_behavr[!duplicated(primary_behavr$ExperimentDay), ]
+
+primary_behavr |>
+  ggetho(aes(x = t, y = Temperature, colour = Primary_Treatment, fill = Primary_Treatment)) +
+  
+  # 1. Shaded region
+  geom_rect(data = shaded_p, 
+            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+            fill = "grey70", alpha = 0.5, inherit.aes = FALSE) +
+            
+  # 2. Baseline line (Moved colour OUTSIDE aes)
+  geom_hline(aes(yintercept = p_tnorm), 
+             colour = "black",        # Static color, won't show in legend
+             linetype = "dashed", 
+             linewidth = 0.8) +
+             
+  stat_pop_etho(method = mean_cl_boot) +
+  stat_ld_annotations(
+    period = 86400,
+    phase = 39600,
+    l_duration = 43200, 
+    ld_colours = c("black", "white")) +
+  facet_grid(Primary_Treatment ~ .) +
+  scale_x_continuous(
+    name = "Experiment Day",
+    breaks = day_ticks$t,             
+    labels = day_ticks$DateType,
+    expand = c(0,0) ) +
+  # 3. Use your original treatmentcolors without the "Tnorm" entry
+  scale_colour_manual(values = primary_colors) +
+  scale_fill_manual(values = primary_colors) +
+  theme_bw() +
+  theme(legend.position = "none",
+    axis.text.x = element_text(angle = -25, vjust = 1, hjust = 0),
+    text = element_text(size = 16),
+    panel.grid = element_blank()) +
+  labs(y = "Skin Temperature (°C)", colour = "Treatment", fill = "Treatment") -> EPFU_Primary2
+
+print(EPFU_Primary2)
+# dropped rows from figure have NAs
+ 
+ggsave("EPFU_Primary2.jpeg", plot = EPFU_Primary2, device = jpeg(), width = 10, height = 6.67)
+```
+
 
 ## Secondary Traces
 

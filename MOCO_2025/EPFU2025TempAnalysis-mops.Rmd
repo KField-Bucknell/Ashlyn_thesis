@@ -92,7 +92,7 @@ SecondaryNames <- unique(Secondary_met$Bat_ID)
 
 treatment_colors <- c("Cold" = "#9EB0FFFF",
                     "NoCo" = "#8A3F2A",
-                    "SHAM" = "#11181DFF" )
+                    "Sham" = "#11181DFF" )
 
 facet_colors <- c("Cold" = "#9EB0FFFF",
                     "NoCo - C1" = "#8A3F2A",
@@ -697,6 +697,20 @@ ggsave("MOCO_deltaT_sec.jpeg", plot = MOCO_deltat_sec, device = jpeg(), width = 
 ```
 
 ```{r}
+secondary_NvP <- Secondary_Results |> 
+  filter(!Treatment == "Cold",
+         Day_Number >= 20 & Day_Number <= 24) |> 
+  mutate(id = Bat_ID) |> 
+  mutate(t = NumberDate) |> 
+  mutate(id = as.character(id))
+
+ Secondary_np <- data.table::data.table(secondary_NvP, key = "id")
+
+ NvP_behavr <- behavr(Secondary_np, Secondary_met2)
+```
+
+
+```{r}
 secondary_delta <- Secondary_Results |> 
   filter(DateType %in% c("Baseline", "Secondary + 1", "Secondary + 2", "Secondary + 3"))
 
@@ -713,6 +727,51 @@ sec_delta <- secondary_delta %>%
 
 write.csv(sec_delta, "MOCO2025_deltat_secondary.csv")
 ```
+
+```{r}
+shaded2 <- data.frame(
+  xmin = c(1749137400 ), 
+  xmax = c(1749144600),
+  ymin = -Inf,
+  ymax = Inf)
+
+sday_ticks_clean <- sday_ticks[!is.na(sday_ticks$t), ]
+
+  NvP_behavr |>
+  ggetho(aes(x = t, y = Temperature, colour = Treatment)) +
+    geom_rect(data = shaded2, 
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = "grey70", alpha = 0.5, inherit.aes = FALSE) +
+  stat_pop_etho(method = mean_cl_boot) +
+     stat_ld_annotations(
+    period = 86400,
+    phase = 25200,      
+    l_duration = 43200, 
+    ld_colours = c("white", "black")) +
+  facet_grid(Treatment ~ . ) +
+  scale_x_continuous(
+    name = "Experiment Day",
+     breaks = sday_ticks_clean$t,             
+    labels = sday_ticks_clean$DateType,
+    limits = c(min(NvP_behavr$t), max(NvP_behavr$t)), 
+    expand = c(0,0) )+
+  scale_colour_manual(values = treatment_colors) +
+  scale_fill_manual(values = treatment_colors) +
+  theme_bw() +
+  theme(legend.position = "null",
+    axis.text.x = element_text(angle = -25, vjust = 1, hjust = 0)) +
+  theme(text = element_text(size = 16), panel.grid = element_blank(),
+        strip.text.y = element_text(
+      size = 10,                                # Smaller font size for strip text
+      margin = margin(l = 5, r = 5)            # Adds horizontal padding
+    ))+
+  labs(y = "Skin Temperature (°C)") -> MOCO_NvS
+
+print(MOCO_NvS)
+
+ggsave("MOCO_NocovSham.jpeg", plot = MOCO_NvS, device = jpeg(), width = 9, height = 5.5)
+```
+
 
 ## Basal Model
 
